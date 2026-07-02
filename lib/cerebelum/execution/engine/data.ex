@@ -96,7 +96,6 @@ defmodule Cerebelum.Execution.Engine.Data do
       String.to_atom(to_string(name))
     end)
   end
-  end
 
   @doc """
   Gets the name of the current step based on the step index.
