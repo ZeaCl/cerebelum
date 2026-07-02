@@ -140,21 +140,7 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
   end
 
   # Espera el resultado de una task ejecutada por un worker.
-
-  ## Implementación
-
-  Usamos el GenServer del Engine como receptor de mensajes.
-  Cuando el worker llama submit_result, enviamos un mensaje
-  al proceso del Engine con el resultado.
-
-  ## Returns
-
-  - {:ok, result} - Task completada
-  - {:sleep, duration_ms, data} - Worker pidió sleep
-  - {:approval, approval_data} - Worker pidió approval
-  - {:error, reason} - Task falló
-  - {:timeout, task_id} - Timeout alcanzado
-  """
+  # Usa el GenServer del Engine como receptor de mensajes.
   defp await_task_result(task_id, execution_id, timeout) do
     # Registrar que estamos esperando este task
     # El submit_result encontrará nuestro PID y nos enviará un mensaje
