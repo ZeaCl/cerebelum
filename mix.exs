@@ -1,9 +1,9 @@
-defmodule CerebelumCore.MixProject do
+defmodule Cerebelum.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :cerebelum_core,
+      app: :cerebelum,
       version: "0.1.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
@@ -78,7 +78,7 @@ defmodule CerebelumCore.MixProject do
   end
 
   # Specifies which paths to compile per environment
-  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:test), do: ["lib", "test/support", "examples"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp deps do
@@ -95,10 +95,19 @@ defmodule CerebelumCore.MixProject do
 
       # Telemetry for metrics
       {:telemetry, "~> 1.2"},
+      {:telemetry_metrics, "~> 1.0"},
+      {:telemetry_poller, "~> 1.0"},
 
       # gRPC for multi-language SDK support
       {:grpc, "~> 0.11"},
       {:protobuf, "~> 0.14"},
+
+      # HTTP API (REST)
+      {:phoenix, "~> 1.7"},
+      {:plug_cowboy, "~> 2.7"},
+      {:cors_plug, "~> 3.0"},
+      {:joken, "~> 2.6"},
+      {:jose, "~> 1.11"},
 
       # Development & Testing
       {:excoveralls, "~> 0.18", only: :test},

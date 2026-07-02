@@ -1,5 +1,5 @@
 # Start the Repo for tests
-{:ok, _} = Application.ensure_all_started(:cerebelum_core)
+{:ok, _} = Application.ensure_all_started(:cerebelum)
 
 # Configure Ecto Sandbox for concurrent test isolation
 Ecto.Adapters.SQL.Sandbox.mode(Cerebelum.Repo, :manual)

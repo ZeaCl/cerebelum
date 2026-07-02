@@ -25,7 +25,7 @@ defmodule Cerebelum.Infrastructure.WorkflowScheduler do
   ## Configuration
 
       # config/config.exs
-      config :cerebelum_core,
+      config :cerebelum,
         resurrection_scan_interval_ms: 30_000,
         enable_workflow_resurrection: true,
         max_resurrection_attempts: 3
@@ -303,7 +303,7 @@ defmodule Cerebelum.Infrastructure.WorkflowScheduler do
 
   # Handles resurrection failure with retry logic
   defp handle_resurrection_failure(pause_record, reason) do
-    max_attempts = Application.get_env(:cerebelum_core, :max_resurrection_attempts, 3)
+    max_attempts = Application.get_env(:cerebelum, :max_resurrection_attempts, 3)
     error_message = inspect(reason)
 
     Logger.warning(
@@ -372,11 +372,11 @@ defmodule Cerebelum.Infrastructure.WorkflowScheduler do
 
   # Checks if resurrection is enabled
   defp resurrection_enabled? do
-    Application.get_env(:cerebelum_core, :enable_workflow_resurrection, true)
+    Application.get_env(:cerebelum, :enable_workflow_resurrection, true)
   end
 
   # Gets scan interval from config
   defp get_scan_interval_ms do
-    Application.get_env(:cerebelum_core, :resurrection_scan_interval_ms, @default_scan_interval_ms)
+    Application.get_env(:cerebelum, :resurrection_scan_interval_ms, @default_scan_interval_ms)
   end
 end

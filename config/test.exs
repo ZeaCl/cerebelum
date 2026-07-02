@@ -1,7 +1,7 @@
 import Config
 
 # Test database config
-config :cerebelum_core, Cerebelum.Repo,
+config :cerebelum, Cerebelum.Repo,
   database: "cerebelum_core_test#{System.get_env("MIX_TEST_PARTITION")}",
   username: "dev",
   hostname: "localhost",
@@ -10,11 +10,11 @@ config :cerebelum_core, Cerebelum.Repo,
   pool_size: 10
 
 # gRPC server disabled in test environment
-config :cerebelum_core,
+config :cerebelum,
   enable_grpc_server: false
 
 # Workflow resurrection settings for testing
-config :cerebelum_core,
+config :cerebelum,
   # Enable resurrection for testing
   enable_workflow_resurrection: true,
   # Fast scans for tests (50ms)

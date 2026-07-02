@@ -14,7 +14,7 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
-  config :cerebelum_core, Cerebelum.Repo,
+  config :cerebelum, Cerebelum.Repo,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     # Disable SSL for now (enable if your PostgreSQL requires it)
@@ -25,7 +25,7 @@ if config_env() == :prod do
   enable_grpc = System.get_env("ENABLE_GRPC_SERVER", "true") == "true"
   grpc_port = String.to_integer(System.get_env("GRPC_PORT") || "9090")
 
-  config :cerebelum_core,
+  config :cerebelum,
     enable_grpc_server: enable_grpc,
     grpc_port: grpc_port
 
@@ -37,17 +37,17 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  config :cerebelum_core,
+  config :cerebelum,
     secret_key_base: secret_key_base
 
   # Release configuration
   if release_node = System.get_env("RELEASE_NODE") do
-    config :cerebelum_core,
+    config :cerebelum,
       release_node: release_node
   end
 
   if release_cookie = System.get_env("RELEASE_COOKIE") do
-    config :cerebelum_core,
+    config :cerebelum,
       release_cookie: release_cookie
   end
 end

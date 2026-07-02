@@ -140,7 +140,7 @@ end
 
 ```elixir
 # config/config.exs
-config :cerebelum_core,
+config :cerebelum,
   # Enable workflow resurrection (default: true)
   enable_workflow_resurrection: true,
 
@@ -702,7 +702,7 @@ psql -h localhost -U cerebelum -d cerebelum_prod
 
 ```bash
 # Enable gRPC server in config
-config :cerebelum_core, enable_grpc_server: true
+config :cerebelum, enable_grpc_server: true
 
 # Verify port is open
 netstat -tlnp | grep 9090

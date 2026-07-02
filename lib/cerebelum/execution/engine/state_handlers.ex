@@ -740,8 +740,8 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
   # Determines if a workflow should be hibernated based on configuration
   defp should_hibernate_workflow?(data) do
-    enabled = Application.get_env(:cerebelum_core, :enable_workflow_hibernation, false)
-    threshold = Application.get_env(:cerebelum_core, :hibernation_threshold_ms, 3_600_000)
+    enabled = Application.get_env(:cerebelum, :enable_workflow_hibernation, false)
+    threshold = Application.get_env(:cerebelum, :hibernation_threshold_ms, 3_600_000)
 
     # Hibernate if:
     # 1. Hibernation is enabled in config

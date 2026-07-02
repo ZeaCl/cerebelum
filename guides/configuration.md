@@ -18,7 +18,7 @@ If you get this error:
 
 ```elixir
 # config/dev.exs (in YOUR application, e.g., venture_core)
-config :cerebelum_core, Cerebelum.Repo,
+config :cerebelum, Cerebelum.Repo,
   username: "dev",
   password: "",
   hostname: "localhost",
@@ -26,7 +26,7 @@ config :cerebelum_core, Cerebelum.Repo,
   pool_size: 10
 
 # Or, to share the same Repo as your application:
-config :cerebelum_core, Cerebelum.Repo,
+config :cerebelum, Cerebelum.Repo,
   adapter: Ecto.Adapters.Postgres,
   username: "dev",
   password: "",
@@ -43,7 +43,7 @@ By default, the gRPC server is **DISABLED** in development and test environments
 
 ```elixir
 # config/dev.exs
-config :cerebelum_core,
+config :cerebelum,
   enable_grpc_server: false,  # Default: disabled
   grpc_port: 50051
 ```
@@ -52,7 +52,7 @@ If you need to test multi-language SDK workers in development, enable it:
 
 ```elixir
 # config/dev.exs
-config :cerebelum_core,
+config :cerebelum,
   enable_grpc_server: true,  # Enable for SDK testing
   grpc_port: 50051  # or any other available port
 ```
@@ -63,7 +63,7 @@ gRPC server is always disabled in tests to avoid port conflicts:
 
 ```elixir
 # config/test.exs
-config :cerebelum_core,
+config :cerebelum,
   enable_grpc_server: false
 ```
 
@@ -73,7 +73,7 @@ In production, the gRPC server is enabled by default for multi-language SDK supp
 
 ```elixir
 # config/prod.exs
-config :cerebelum_core,
+config :cerebelum,
   enable_grpc_server: true,  # or set via ENV: ENABLE_GRPC_SERVER=true
   grpc_port: 50051  # or set via ENV: GRPC_PORT=50051
 ```
@@ -94,12 +94,12 @@ Environment variables:
 
 1. **Disable gRPC server** (recommended for dev when not testing SDKs):
    ```elixir
-   config :cerebelum_core, enable_grpc_server: false
+   config :cerebelum, enable_grpc_server: false
    ```
 
 2. **Change the port**:
    ```elixir
-   config :cerebelum_core, grpc_port: 50052
+   config :cerebelum, grpc_port: 50052
    ```
 
 3. **Kill existing process**:
@@ -113,7 +113,7 @@ Make sure you have `ecto_repos` configured:
 
 ```elixir
 # config/config.exs
-config :cerebelum_core, ecto_repos: [Cerebelum.Repo]
+config :cerebelum, ecto_repos: [Cerebelum.Repo]
 ```
 
 ### Complete Example Configuration
@@ -131,7 +131,7 @@ config :your_app, YourApp.Repo,
   pool_size: 10
 
 # Cerebelum Core database (can share the same database)
-config :cerebelum_core, Cerebelum.Repo,
+config :cerebelum, Cerebelum.Repo,
   username: "dev",
   password: "",
   hostname: "localhost",
@@ -139,7 +139,7 @@ config :cerebelum_core, Cerebelum.Repo,
   pool_size: 10
 
 # Cerebelum Core gRPC (disabled by default in dev)
-config :cerebelum_core,
+config :cerebelum,
   enable_grpc_server: false
 ```
 
@@ -158,7 +158,7 @@ Only enable when you need to test Kotlin/TypeScript/Python SDK workers:
 
 ```elixir
 # config/dev.exs
-config :cerebelum_core,
+config :cerebelum,
   enable_grpc_server: true,
   grpc_port: 50051
 ```

@@ -1,16 +1,16 @@
 import Config
 
 # Configure Ecto Repo
-config :cerebelum_core, Cerebelum.Repo,
+config :cerebelum, Cerebelum.Repo,
   database: "cerebelum_core_dev",
   username: "dev",
   hostname: "localhost",
   pool_size: 10
 
-config :cerebelum_core, ecto_repos: [Cerebelum.Repo]
+config :cerebelum, ecto_repos: [Cerebelum.Repo]
 
 # Workflow Resurrection Configuration
-config :cerebelum_core,
+config :cerebelum,
   # Enable workflow resurrection (boot-time and periodic)
   enable_workflow_resurrection: true,
 
@@ -29,7 +29,25 @@ config :cerebelum_core,
   # Hibernation threshold (in milliseconds)
   # Workflows sleeping longer than this will be hibernated
   # Default: 1 hour (3,600,000 ms)
-  hibernation_threshold_ms: 3_600_000
+  hibernation_threshold_ms: 3_600_000,
+
+  # HTTP API server
+  http_enabled: false,
+  http_port: 4001,
+
+  # gRPC server
+  enable_grpc_server: false,
+  grpc_port: 50051
+
+# Phoenix endpoint config
+config :cerebelum, Cerebelum.API.Endpoint,
+  url: [host: "localhost"],
+  adapter: Bandit.PhoenixAdapter,
+  render_errors: [formats: [json: Cerebelum.API.ErrorJSON]],
+  pubsub_server: Cerebelum.API.PubSub
+
+# Use Jason for JSON
+config :phoenix, :json_library, Jason
 
 # Import environment specific config
 import_config "#{config_env()}.exs"

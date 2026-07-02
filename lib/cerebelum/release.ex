@@ -4,7 +4,7 @@ defmodule Cerebelum.Release do
 
   Used to run database migrations and other setup tasks in production.
   """
-  @app :cerebelum_core
+  @app :cerebelum
 
   def migrate do
     load_app()

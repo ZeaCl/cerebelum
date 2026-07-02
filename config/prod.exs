@@ -7,5 +7,5 @@ import Config
 config :logger, level: :info
 
 # Enable server by default
-config :cerebelum_core,
+config :cerebelum,
   server: true

@@ -64,10 +64,18 @@ defmodule Cerebelum.Application do
   end
 
   defp grpc_enabled? do
-    Application.get_env(:cerebelum_core, :enable_grpc_server, false)
+    Application.get_env(:cerebelum, :enable_grpc_server, false)
   end
 
   defp grpc_port do
-    Application.get_env(:cerebelum_core, :grpc_port, 50051)
+    Application.get_env(:cerebelum, :grpc_port, 50051)
+  end
+
+  defp http_enabled? do
+    Application.get_env(:cerebelum, :http_enabled, false)
+  end
+
+  defp http_port do
+    Application.get_env(:cerebelum, :http_port, 4001)
   end
 end
