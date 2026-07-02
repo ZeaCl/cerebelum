@@ -88,17 +88,18 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
   def execute_step(data, step_name, step_inputs) do
     execution_id = data.context.execution_id
     blueprint_name = data.blueprint_name || "unknown"
+    step_name_str = to_string(step_name)
 
     Logger.debug("Delegating step '#{step_name}' to worker for execution #{execution_id}")
 
     # 1. Crear task para el worker
     task = %{
       workflow_module: blueprint_name,
-      step_name: step_name,
+      step_name: step_name_str,
       inputs: step_inputs,
       context: %{
         execution_id: execution_id,
-        step_name: step_name
+        step_name: step_name_str
       }
     }
 
