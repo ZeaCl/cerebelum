@@ -144,7 +144,7 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
   ## Implementación
 
   Usamos el GenServer del Engine como receptor de mensajes.
-  Cuando el worker llama `submit_result`, enviamos un mensaje
+  Cuando el worker llama submit_result, enviamos un mensaje
   al proceso del Engine con el resultado.
 
   ## Returns

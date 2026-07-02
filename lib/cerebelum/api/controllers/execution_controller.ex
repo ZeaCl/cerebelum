@@ -7,7 +7,6 @@ defmodule Cerebelum.API.ExecutionController do
 
   alias Cerebelum.EventStore
   alias Cerebelum.Execution.StateReconstructor
-  alias Cerebelum.Execution.Supervisor, as: ExecutionSupervisor
 
   @doc """
   List all executions with optional filters.
