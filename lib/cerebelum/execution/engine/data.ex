@@ -108,7 +108,7 @@ defmodule Cerebelum.Execution.Engine.Data do
   """
   @spec current_step_name(t()) :: atom() | nil
   def current_step_name(data) do
-    Enum.at(data.workflow_metadata.timeline, data.current_step_index)
+    Enum.at(data.timeline, data.current_step_index)
   end
 
   @doc """

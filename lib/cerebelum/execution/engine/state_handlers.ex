@@ -310,13 +310,26 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   end
 
   defp handle_step_error(data, step_name, error_info) do
-    Logger.error("Step #{step_name} failed: #{ErrorInfo.format(error_info)}")
+    # Handle both ErrorInfo structs and plain error strings
+    formatted = if is_binary(error_info) do
+      error_info
+    else
+      ErrorInfo.format(error_info)
+    end
+    Logger.error("Step #{step_name} failed: #{formatted}")
 
     # Emit StepFailedEvent (async batched)
     {version, data} = Data.next_event_version(data)
-    EventEmitter.emit_step_failed(data, error_info, version)
 
-    data = Data.mark_failed(data, error_info)
+    error_struct = if is_binary(error_info) do
+      ErrorInfo.from_exception(step_name, %RuntimeError{message: error_info}, [], data.context.execution_id)
+    else
+      error_info
+    end
+
+    EventEmitter.emit_step_failed(data, error_struct, version)
+
+    data = Data.mark_failed(data, error_struct)
     {:next_state, :failed, data}
   end
 
