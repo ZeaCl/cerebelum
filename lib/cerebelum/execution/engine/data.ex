@@ -79,13 +79,23 @@ defmodule Cerebelum.Execution.Engine.Data do
     %__MODULE__{
       context: context,
       workflow_metadata: workflow_metadata,
-      timeline: workflow_metadata.timeline,
+      timeline: if(blueprint, do: extract_blueprint_timeline(blueprint), else: workflow_metadata.timeline),
       results: %{},
       current_step_index: 0,
       iteration: 0,
       blueprint: blueprint,
       blueprint_name: blueprint_name
     }
+  end
+
+  defp extract_blueprint_timeline(blueprint) do
+    definition = blueprint[:definition] || blueprint["definition"] || %{}
+    timeline = definition[:timeline] || definition["timeline"] || []
+    Enum.map(timeline, fn step ->
+      name = step[:name] || step["name"]
+      String.to_atom(to_string(name))
+    end)
+  end
   end
 
   @doc """
