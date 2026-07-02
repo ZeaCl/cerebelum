@@ -61,16 +61,26 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     step_name = Data.current_step_name(data)
     Logger.info("Executing step: #{step_name}")
 
-    # Delegate execution to StepExecutor
-    result =
-      StepExecutor.execute_step(
-        data.context.workflow_module,
-        step_name,
-        data.current_step_index,
-        data.context,
-        data.workflow_metadata.timeline,
-        data.results
-      )
+    # Check execution mode
+    result = case StepExecutor.step_mode(data.context.workflow_module) do
+      :remote ->
+        # Distributed workflow — delegate to worker via DelegatingWorkflow
+        Logger.info("Delegating step '#{step_name}' to worker")
+        args = StepExecutor.build_arguments(data.context, data.current_step_index, data.workflow_metadata.timeline, data.results)
+        step_inputs = build_step_inputs(args)
+        Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
+
+      :local ->
+        # Native Elixir workflow — execute directly
+        StepExecutor.execute_step(
+          data.context.workflow_module,
+          step_name,
+          data.current_step_index,
+          data.context,
+          data.workflow_metadata.timeline,
+          data.results
+        )
+    end
 
     case result do
       {:ok, step_result} ->
@@ -140,6 +150,13 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   end
 
   ## Private Helpers
+
+  defp build_step_inputs(args) do
+    # args = [context | previous_results]
+    # Convert to a map for the worker
+    [_context | prev_results] = args
+    %{previous_results: prev_results}
+  end
 
   defp handle_step_success(data, step_name, step_result) do
     # Check if step wants special execution (parallel, sleep, approval, etc.)

@@ -85,15 +85,15 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
   - `{:sleep, [milliseconds: X], data}` - Step pidió sleep
   - `{:approval, approval_data}` - Step pidió approval
   """
-  def execute_step(context, step_name, step_inputs) do
-    execution_id = context.execution_id
-    workflow_module = Map.get(context, :workflow_module, "unknown")
+  def execute_step(data, step_name, step_inputs) do
+    execution_id = data.context.execution_id
+    blueprint_name = data.blueprint_name || "unknown"
 
     Logger.debug("Delegating step '#{step_name}' to worker for execution #{execution_id}")
 
     # 1. Crear task para el worker
     task = %{
-      workflow_module: workflow_module,
+      workflow_module: blueprint_name,
       step_name: step_name,
       inputs: step_inputs,
       context: %{

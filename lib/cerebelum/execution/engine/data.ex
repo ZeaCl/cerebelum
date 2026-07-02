@@ -27,7 +27,9 @@ defmodule Cerebelum.Execution.Engine.Data do
           approval_data: map() | nil,
           approval_step_name: atom() | nil,
           approval_timeout_ms: non_neg_integer() | nil,
-          approval_started_at: integer() | nil
+          approval_started_at: integer() | nil,
+          blueprint: map() | nil,
+          blueprint_name: String.t() | nil
         }
 
   defstruct [
@@ -47,7 +49,9 @@ defmodule Cerebelum.Execution.Engine.Data do
     approval_data: nil,
     approval_step_name: nil,
     approval_timeout_ms: nil,
-    approval_started_at: nil
+    approval_started_at: nil,
+    blueprint: nil,
+    blueprint_name: nil
   ]
 
   @doc """
@@ -68,13 +72,19 @@ defmodule Cerebelum.Execution.Engine.Data do
     workflow_metadata = Metadata.extract(workflow_module)
     context = Context.new(workflow_module, inputs, context_opts)
 
+    # Extract blueprint info from opts (for distributed workflows)
+    blueprint = context_opts[:blueprint]
+    blueprint_name = context_opts[:blueprint_name] || context_opts[:workflow_module]
+
     %__MODULE__{
       context: context,
       workflow_metadata: workflow_metadata,
       timeline: workflow_metadata.timeline,
       results: %{},
       current_step_index: 0,
-      iteration: 0
+      iteration: 0,
+      blueprint: blueprint,
+      blueprint_name: blueprint_name
     }
   end
 

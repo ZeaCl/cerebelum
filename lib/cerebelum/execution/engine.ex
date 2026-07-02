@@ -171,9 +171,10 @@ defmodule Cerebelum.Execution.Engine do
         # Normal startup - create new execution
         workflow_module = Keyword.fetch!(opts, :workflow_module)
         inputs = Keyword.get(opts, :inputs, %{})
-        context_opts = Keyword.get(opts, :context_opts, [])
+        context_opts = Keyword.take(opts, [:correlation_id, :tags, :metadata, :execution_id])
+        data_opts = Keyword.take(opts, [:blueprint, :blueprint_name, :execution_mode])
 
-        data = Data.new(workflow_module, inputs, context_opts)
+        data = Data.new(workflow_module, inputs, context_opts ++ data_opts)
 
         Logger.info("Initializing execution: #{data.context.execution_id}")
 

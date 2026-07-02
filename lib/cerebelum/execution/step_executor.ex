@@ -30,6 +30,15 @@ defmodule Cerebelum.Execution.StepExecutor do
   - `{:ok, result}` - Step executed successfully
   - `{:error, reason}` - Step failed
   """
+  @spec step_mode(module()) :: :local | :remote
+  def step_mode(workflow_module) do
+    if workflow_module == Cerebelum.WorkflowDelegatingWorkflow do
+      :remote
+    else
+      :local
+    end
+  end
+
   @spec execute_step(module(), atom(), non_neg_integer(), map(), list(atom()), map()) ::
           {:ok, term()} | {:error, term()}
   def execute_step(workflow_module, step_name, step_index, context, timeline, results) do
