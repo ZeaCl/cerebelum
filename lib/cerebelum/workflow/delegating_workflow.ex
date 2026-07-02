@@ -149,11 +149,11 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
 
   ## Returns
 
-  - `{:ok, result}` - Task completada
-  - `{:sleep, duration_ms, data}` - Worker pidió sleep
-  - `{:approval, approval_data}` - Worker pidió approval
-  - `{:error, reason}` - Task falló
-  - `{:timeout, task_id}` - Timeout alcanzado
+  - {:ok, result} - Task completada
+  - {:sleep, duration_ms, data} - Worker pidió sleep
+  - {:approval, approval_data} - Worker pidió approval
+  - {:error, reason} - Task falló
+  - {:timeout, task_id} - Timeout alcanzado
   """
   defp await_task_result(task_id, execution_id, timeout) do
     # Registrar que estamos esperando este task
