@@ -347,9 +347,9 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
         {:ok, pid} = Cerebelum.Execution.Supervisor.start_execution(
           Cerebelum.WorkflowDelegatingWorkflow,
           inputs,
-          # Pass blueprint and workflow_module via context
+          # Pass blueprint and blueprint_name via context (NOT workflow_module to avoid overwrite)
           blueprint: blueprint,
-          workflow_module: request.workflow_module,
+          blueprint_name: request.workflow_module,
           execution_mode: :distributed
         )
 
