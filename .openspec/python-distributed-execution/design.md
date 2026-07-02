@@ -1,150 +1,89 @@
 # Design — Python Distributed Workflow Execution
 
 ## Overview
-Extender el Execution Engine para soportar dos modos de ejecución de steps: **local** (Elixir) y **remoto** (Python via worker). Usar el patrón Strategy en `StepExecutor` para despachar al modo correcto según el tipo de workflow. La comunicación Engine ↔ Worker es async vía `TaskRouter` con callbacks.
+El diseño ya existe y está parcialmente implementado. `DelegatingWorkflow` es el bridge entre Engine y Workers. Solo falta el último paso: integrarlo en `StateHandlers.executing_step`.
 
 ## Architecture
 
 ```mermaid
 graph TB
-    subgraph "Python SDK"
-        SDK[DistributedExecutor]
-        SDK -->|1. SubmitBlueprint| GRPC
-        SDK -->|2. ExecuteWorkflow| GRPC
-    end
-
-    subgraph "Worker (Python)"
-        W[Worker.poll]
-        W -->|PollForTask| GRPC
-        W -->|SubmitResult| GRPC
-    end
-
-    subgraph "Cerebelum Engine"
-        GRPC[gRPC Server]
+    subgraph "YA FUNCIONA"
+        SDK[Python SDK] -->|SubmitBlueprint| GRPC
+        SDK -->|ExecuteWorkflow| GRPC
+        W[Worker] -->|PollForTask| TR[TaskRouter]
+        W -->|SubmitResult| TR
         GRPC -->|store| BP[BlueprintRegistry]
-        GRPC -->|start| SUP[Execution.Supervisor]
+        GRPC -->|start| SUP[Supervisor]
         SUP -->|spawn| ENG[Engine :gen_statem]
+        TR -->|notify| DW2[DelegatingWorkflow.notify_task_result]
+        DW2 -->|send msg| ENG
+    end
+
+    subgraph "FALTA CONECTAR"
         ENG -->|step| MODE{Step Mode?}
-        MODE -->|local| SE[StepExecutor]
-        MODE -->|remote| DW[DelegatingWorkflow]
-        DW -->|enqueue| TR[TaskRouter]
-        TR -->|dispatch| W
-        DW -->|callback| ENG
-        SE -->|emit| ES[EventStore]
-        DW -->|emit| ES
-        ENG -->|emit| ES
-    end
-
-    subgraph "Storage"
-        ES --> PG[(PostgreSQL)]
-        BP --> PG
+        MODE -->|local| SE[StepExecutor.apply]
+        MODE -->|remote| DW[DelegatingWorkflow.execute_step]
+        DW -->|enqueue| TR
     end
 ```
 
-## Components and Interfaces
-
-### 1. Step Mode Detection (`StepExecutor` extension)
-- **Responsibility**: Determinar si un step se ejecuta local o remoto
-- **Input**: `workflow_module`, `blueprint` context key
-- **Output**: atom `:local` | `:remote`
-- **Logic**: Si `workflow_module == Cerebelum.WorkflowDelegatingWorkflow` Y existe `:blueprint` en opts → `:remote`
-
-### 2. DelegatingWorkflow (existente, a completar)
-- **Responsibility**: Crear tasks en TaskRouter y esperar resultados
-- **Input**: `context`, `step_name`, `step_inputs`
-- **Output**: `{:ok, result}` | `{:error, reason}`
-- **Cambios necesarios**:
-  - Leer `blueprint` del contexto (no de `context.metadata`)
-  - Leer `blueprint_name` para identificar el workflow
-  - Registrar callback para `notify_task_result`
-  - Timeout de 5 minutos por step
-
-### 3. TaskRouter (existente, funcional)
-- **Responsibility**: Cola de tasks FIFO por worker type
-- **Sin cambios**: Ya implementa enqueue/dequeue/poll
-
-### 4. WorkerServiceServer (gRPC — existente)
-- **Responsibility**: Endpoints gRPC para workers
-- **Sin cambios**: `PollForTask`, `SubmitResult`, `Register` funcionan
-
-## Data Flow — Execute Step
-
-```mermaid
-sequenceDiagram
-    participant E as Engine
-    participant DW as DelegatingWorkflow
-    participant TR as TaskRouter
-    participant W as Python Worker
-    participant ES as EventStore
-
-    E->>E: executing_step(:internal, :execute)
-    E->>E: detect remote mode
-    E->>DW: execute_step(context, step_name, inputs)
-    DW->>ES: emit StepStartedEvent
-    DW->>TR: enqueue_task(task)
-    DW->>DW: register_callback(exec_id, task_id)
-    E->>E: transition(:waiting_for_worker)
-
-    Note over W: Worker polls every 500ms
-    W->>TR: PollForTask
-    TR-->>W: Task{step_name, inputs}
-    W->>W: execute_step(inputs)
-    W->>TR: SubmitResult(exec_id, task_id, result)
-
-    TR->>DW: notify_task_result(exec_id, task_id, result)
-    DW->>ES: emit StepExecutedEvent
-    DW->>E: send {:step_completed, step_name, result}
-    E->>E: transition(:executing_step)
-    E->>E: advance_step, check finished
-```
-
-## Data Models
-
-```mermaid
-erDiagram
-    Blueprint {
-        string workflow_module
-        string language
-        json definition
-    }
-    Task {
-        string task_id
-        string execution_id
-        string step_name
-        json inputs
-        string status
-    }
-    Execution {
-        string execution_id
-        string mode "local or distributed"
-        string blueprint_name
-    }
-    Blueprint ||--o{ Task : "defines steps for"
-    Execution ||--o{ Task : "creates"
-```
-
-## Error Handling
+## Lo que YA existe
 
 ```
-Step fails:
-  1. Worker returns {:error, reason}
-  2. TaskRouter → DelegatingWorkflow.notify_task_result
-  3. DelegatingWorkflow → Engine: {:step_failed, reason}
-  4. Engine → StateHandlers: evaluate diverge rules
-  5. Match → jump/retry. No match → mark failed
-
-Worker timeout:
-  1. TaskRouter detecta 5min sin respuesta
-  2. Reintenta hasta 3 veces
-  3. Fallo final → DLQ + ExecutionFailedEvent
-
-Worker desconectado:
-  1. WorkerRegistry.remove(worker_id)
-  2. Tasks pendientes → reencolar para otros workers
+✅ BlueprintRegistry — guarda blueprints validados
+✅ WorkerRegistry — registra workers Python
+✅ TaskRouter — cola de tasks + dispatch  
+✅ WorkerServiceServer.execute_workflow — arranca el Engine con DelegatingWorkflow
+✅ WorkerServiceServer.submit_result — notifica a DelegatingWorkflow
+✅ DelegatingWorkflow.execute_step — crea task, espera callback
+✅ DelegatingWorkflow.notify_task_result — recibe resultado del worker
+✅ DelegatingWorkflow.await_task_result — bloquea esperando respuesta
+✅ Engine.sleeping — estado para sleep de workers
 ```
 
-## Testing Strategy
-1. **Unit**: `StepExecutor` mode detection, `DelegatingWorkflow` task creation
-2. **Integration**: Engine + TaskRouter + Mock Worker (sin gRPC real)
-3. **E2E**: Python SDK → gRPC → Engine → Worker Python real → resultado
-4. **Regression**: Workflows Elixir nativos no afectados por los cambios
+## Lo que FALTA
+
+```
+❌ StateHandlers.executing_step no sabe delegar a DelegatingWorkflow
+❌ StepExecutor no detecta modo remoto vs local
+❌ DelegatingWorkflow no lee blueprint del contexto (usa context.metadata)
+❌ Engine no tiene estado waiting_for_worker (usa el timeout de 5min de gen_statem)
+```
+
+## Cambios necesarios
+
+### 1. StepExecutor — detectar modo
+```elixir
+defp step_mode(data) do
+  if data.context.workflow_module == Cerebelum.WorkflowDelegatingWorkflow do
+    :remote
+  else
+    :local  
+  end
+end
+```
+
+### 2. StateHandlers.executing_step — delegar
+```elixir
+def executing_step(:internal, :execute, data) do
+  case StepExecutor.step_mode(data) do
+    :remote ->
+      result = DelegatingWorkflow.execute_step(data.context, step_name, args)
+      handle_step_result(data, step_name, result)
+    :local ->
+      # ... existing code
+  end
+end
+```
+
+### 3. DelegatingWorkflow — corregir lectura de blueprint
+```elixir
+# Antes (mal):
+workflow_module = Map.get(context, :workflow_module, "unknown")
+
+# Después (bien):
+# El blueprint viene en opts del Engine, no en context
+```
+
+### 4. Engine.init — pasar blueprint a estado
+Ya se pasa como `blueprint:` en opts. Solo hay que leerlo en DelegatingWorkflow desde el data del Engine, no desde el Context.
