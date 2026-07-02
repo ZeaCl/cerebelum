@@ -71,11 +71,6 @@ defmodule Cerebelum.Application do
     Application.get_env(:cerebelum, :grpc_port, 50051)
   end
 
-  defp http_enabled? do
-    Application.get_env(:cerebelum, :http_enabled, false)
-  end
-
-  defp http_port do
-    Application.get_env(:cerebelum, :http_port, 4001)
-  end
+  # http_enabled? and http_port are used when cerebelum starts its own
+  # supervision tree. When used as a library, the host app handles this.
 end

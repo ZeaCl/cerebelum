@@ -26,15 +26,10 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     BlueprintValidation,
     ExecuteRequest,
     ExecutionHandle,
-    GetExecutionStatusRequest,
     ExecutionStatus,
     StepStatus,
     SleepInfo,
     ApprovalInfo,
-    ExecutionState,
-    ListExecutionsRequest,
-    ListExecutionsResponse,
-    ResumeExecutionRequest,
     ErrorInfo
   }
 

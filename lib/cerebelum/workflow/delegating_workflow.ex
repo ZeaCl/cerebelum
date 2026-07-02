@@ -44,17 +44,9 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
   use Cerebelum.Workflow
   require Logger
 
-  @doc """
-  Define el workflow dinámicamente basado en el blueprint.
-
-  El blueprint contiene:
-  - timeline: lista de steps
-  - diverge_rules: reglas de divergencia
-  - branch_rules: reglas de branching
-  """
+  # Blueprint contiene: timeline, diverge_rules, branch_rules
+  # El timeline se define dinámicamente en runtime vía __workflow_metadata__/0
   workflow do
-    # El timeline se define dinámicamente en runtime
-    # Ver __workflow_metadata__/0
   end
 
   @doc false
@@ -147,12 +139,7 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
     end
   end
 
-  @doc """
-  Espera el resultado de una task ejecutada por un worker.
-
-  Esta función bloquea hasta que:
-  1. El worker completa la task y envía el resultado
-  2. Se alcanza el timeout
+  # Espera el resultado de una task ejecutada por un worker.
 
   ## Implementación
 
