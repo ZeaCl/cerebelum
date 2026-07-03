@@ -2,7 +2,8 @@
 
 - **Hash**: `20260702-213331-2d8809e`
 - **Path**: `ZeaCl/cerebelum/.plan/20260702-213331-2d8809e/`
-- **Engine**: ZeaCl/cerebelum @ 2d8809e
+- **Engine**: ZeaCl/cerebelum @ b81e997
+- **Board**: https://github.com/orgs/ZeaCl/projects/6
 - **Objetivo**: Desplegar cerebelum en ZEA Platform producción y validar demo-cloud contra él
 
 > Mark `[x]` as you complete. Push after each phase.
@@ -15,13 +16,13 @@
 
 ## B. Docker Image & CI
 - [x] B0. Commit + push `.github/workflows/publish.yml` (está untracked, CI no existe en remote)
-- [x] B1. Disparar CI: `gh workflow run publish.yml` o push a main → build `ghcr.io/zeacl/cerebelum:latest`
+- [x] B1. Disparar CI: push a main → build `ghcr.io/zeacl/cerebelum:latest`
 - [x] B2. Verificar que el workflow corrió: `gh run list --repo ZeaCl/cerebelum`
 - [x] B3. Verificar que `Release.migrate/0` funciona en el container
 
 ## T. Infra / Terraform
 - [x] T1. Commit + push `main.tf` + `userdata.tftpl` en `ZeaCl/infra`
-- [x] T2. `terraform apply` → secrets (`cerebelum_db_password`, `secret_key_base_cerebelum`) + DNS `cerebelum.zea.cl`
+- [x] T2. `terraform apply` → secrets + DNS `cerebelum.zea.cl`
 - [x] T3. Verificar `cloudflare_record.cerebelum` resuelve a la IP del servidor
 
 ## C. Deploy en ZEA
@@ -56,3 +57,19 @@
 ## H. Docs finales
 - [ ] H1. `llms.txt` actualizado con Cerebelum
 - [ ] H2. `README.md` ZEA actualizado
+
+---
+
+## Bugs fixeados post-deploy
+
+| Commit | Fix |
+|--------|-----|
+| `cc5d809` | Agregar `releases` config a mix.exs para build Docker |
+| `e6f2a6a` | Quitar `:inet6` que rompía IPv4 en Docker |
+| `1ffaddf` | Agregar Phoenix Endpoint al supervision tree |
+| `ef1a195` | Agregar Workflow.Registry al supervision tree |
+| `bcc792c` | Agregar `:inets` a extra_applications para JWKS |
+| `b1b8cec` | Parsear correctamente JWKS con kid |
+| `0a8152d` | Usar Thalamus token introspection en vez de JWKS |
+| `893fcb2` | WorkerRegistry → Infrastructure.WorkerRegistry |
+| `b81e997` | CLI completo con 16 comandos |
