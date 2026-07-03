@@ -12,11 +12,28 @@
 **User Story:** As any developer, I want `npx @zea.cl/cerebelum-cli` and manage workflows from the terminal.
 
 - WHEN `npx @zea.cl/cerebelum-cli` is run THEN help text SHALL display all commands
-- WHEN `cerebelum init my-project` is run THEN a project template SHALL be scaffolded with example workflow
-- WHEN `cerebelum deploy workflow.py` is run THEN the blueprint SHALL be uploaded to the engine
-- WHEN `cerebelum run OrderWorkflow --input '{"x":1}'` is run THEN the workflow SHALL execute and show results
-- WHEN `cerebelum logs <exec_id> --follow` is run THEN events SHALL stream in real-time
-- WHEN `cerebelum login` is run THEN the CLI SHALL open browser for OAuth2 via Thalamus and store the token
+- WHEN `cerebelum init my-project` is run THEN a project template SHALL be scaffolded
+- WHEN `cerebelum login` is run THEN the CLI SHALL open browser for OAuth2 and store token
+- WHEN `cerebelum whoami` is run THEN the CLI SHALL show current user and org
+- WHEN `cerebelum deploy workflow.py` is run THEN the blueprint SHALL be uploaded
+
+### Workflow management
+- WHEN `cerebelum workflow list` is run THEN registered workflows SHALL be displayed
+- WHEN `cerebelum workflow show <id>` is run THEN details and code SHALL be shown
+- WHEN `cerebelum workflow delete <id>` is run THEN the workflow SHALL be removed
+- WHEN `cerebelum workflow run <id> --input '{}'` is run THEN the workflow SHALL execute
+
+### Execution management
+- WHEN `cerebelum execution list` is run THEN recent executions SHALL be displayed
+- WHEN `cerebelum execution status <id>` is run THEN current state SHALL be shown
+- WHEN `cerebelum execution logs <id> --follow` is run THEN events SHALL stream live
+- WHEN `cerebelum execution stop <id>` is run THEN the execution SHALL be cancelled
+- WHEN `cerebelum execution resume <id>` is run THEN a paused execution SHALL resume
+- WHEN `cerebelum execution approve <id>` is run THEN HITL step SHALL be approved
+
+### Operations
+- WHEN `cerebelum worker list` is run THEN registered Python workers SHALL be displayed
+- WHEN `cerebelum doctor` is run THEN health checks SHALL run against the engine
 
 ## R3: Auth via Thalamus JWT
 **User Story:** As a developer, I use the same ZEA credentials for everything.

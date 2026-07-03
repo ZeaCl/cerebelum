@@ -25,10 +25,14 @@
 
 - [ ] 4. **CLI publicable en npm**
   - [ ] 4.1 Publicar como `@zea.cl/cerebelum-cli` en npm
-  - [ ] 4.2 Comando `cerebelum login` → OAuth2 Thalamus → guarda token
-  - [ ] 4.3 Comando `cerebelum init <name>` → scaffold template
-  - [ ] 4.4 Comando `cerebelum deploy workflow.py` → SubmitBlueprint
-  - [ ] 4.5 Comando `cerebelum logs <id> --follow` → streaming vía REST
+  - [ ] 4.2 `cerebelum login` → OAuth2 Thalamus → guarda token
+  - [ ] 4.3 `cerebelum whoami` → muestra user, org, token status
+  - [ ] 4.4 `cerebelum init <name>` → scaffold template
+  - [ ] 4.5 `cerebelum deploy workflow.py` → SubmitBlueprint
+  - [ ] 4.6 `cerebelum workflow list|show|delete|run` → CRUD workflows
+  - [ ] 4.7 `cerebelum execution list|status|logs|stop|resume|approve` → lifecycle
+  - [ ] 4.8 `cerebelum worker list` → workers registrados
+  - [ ] 4.9 `cerebelum doctor` → health checks
   - _Requirements: R2.1, R2.2, R2.3, R2.4, R2.5, R2.6_
 
 - [ ] 5. **Integración en ZEA Platform docker-compose**
