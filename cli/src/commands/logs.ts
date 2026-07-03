@@ -19,8 +19,8 @@ export async function executionLogs(id: string, follow: boolean, json: boolean) 
       break
     }
 
-    const events = ((data as any).data || []) as any[]
-    const newEvents = events.filter((e: any) => e.version > lastVersion)
+    const events = ((data as any).events || (data as any).data || []) as any[]
+    const newEvents = events.filter((e: any) => (e.version ?? 0) > lastVersion)
 
     if (newEvents.length > 0) {
       for (const ev of newEvents) {
@@ -37,8 +37,9 @@ export async function executionLogs(id: string, follow: boolean, json: boolean) 
           const stepInfo = ev.data?.step_name ? ` ${color('purple', `[${ev.data.step_name}]`)}` : ''
           console.log(`${color('gray', `[${time}]`)} ${color(eventColor, ev.type)}${stepInfo}`)
 
-          if (ev.data?.output && Object.keys(ev.data.output).length > 0) {
-            console.log(`  ${color('gray', JSON.stringify(ev.data.output).slice(0, 120))}`)
+          const output = ev.data?.result || ev.data?.final_result
+          if (output && typeof output === 'object' && Object.keys(output).length > 0) {
+            console.log(`  ${color('gray', JSON.stringify(output).slice(0, 120))}`)
           }
         }
         lastVersion = Math.max(lastVersion, ev.version)
