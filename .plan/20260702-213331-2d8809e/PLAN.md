@@ -17,7 +17,7 @@
 - [x] B0. Commit + push `.github/workflows/publish.yml` (está untracked, CI no existe en remote)
 - [x] B1. Disparar CI: `gh workflow run publish.yml` o push a main → build `ghcr.io/zeacl/cerebelum:latest`
 - [x] B2. Verificar que el workflow corrió: `gh run list --repo ZeaCl/cerebelum`
-- [ ] B3. Verificar que `Release.migrate/0` funciona en el container
+- [x] B3. Verificar que `Release.migrate/0` funciona en el container
 
 ## T. Infra / Terraform
 - [x] T1. Commit + push `main.tf` + `userdata.tftpl` en `ZeaCl/infra`
@@ -25,13 +25,13 @@
 - [x] T3. Verificar `cloudflare_record.cerebelum` resuelve a la IP del servidor
 
 ## C. Deploy en ZEA
-- [ ] C1. `docker compose -f docker-compose.prod.yml up -d` (desde zea/)
-- [ ] C2. Verificar containers: `docker ps | grep cerebelum`
-- [ ] C3. Logs: `docker logs zea_cerebelum` sin errores
+- [x] C1. `docker compose -f docker-compose.prod.yml up -d` (desde zea/)
+- [x] C2. Verificar containers: `docker ps | grep cerebelum`
+- [x] C3. Logs: `docker logs zea_cerebelum` sin errores
 
 ## D. Validación REST API
-- [ ] D1. `curl https://cerebelum.zea.cl/health` → 200
-- [ ] D2. `curl https://cerebelum.zea.cl/api/v1/executions` → 401 (sin token)
+- [x] D1. `curl https://cerebelum.zea.cl/health` → 200
+- [x] D2. `curl https://cerebelum.zea.cl/api/v1/executions` → 401 (sin token)
 - [ ] D3. `curl -H "Authorization: Bearer <JWT>" https://cerebelum.zea.cl/api/v1/executions` → 200
 
 ## E. Validación Demo Cloud
