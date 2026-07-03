@@ -74,3 +74,11 @@
 - WHEN an org exceeds 1000 requests/minute THEN the system SHALL return HTTP 429
 - WHERE a PAT is provided THEN the system SHALL apply the token's configured rate limit
 - IF rate limit is exceeded THEN the response SHALL include `Retry-After` header
+
+## R8: Documentación para devs y AI agents
+**User Story:** As a new developer (or AI agent), I want to discover Cerebelum from ZEA docs and start building immediately.
+
+- WHEN a dev reads `zea/README.md` THEN Cerebelum SHALL appear in the services table
+- WHEN `llms.txt` is accessed THEN it SHALL include Cerebelum API endpoints, auth, and quickstart
+- WHEN `zea/docs/index.html` is accessed THEN Cerebelum SHALL be listed with port and URL
+- WHERE SDK links are provided THEN they SHALL point to npm and PyPI
