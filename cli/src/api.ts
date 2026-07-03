@@ -6,6 +6,7 @@ const AUTH_BASE = process.env.ZEA_AUTH_URL || 'https://auth.zea.cl'
 export interface CerebelumConfig {
   baseUrl: string
   apiKey: string
+  refreshToken: string
   authUrl: string
 }
 
@@ -23,8 +24,33 @@ export function loadConfig(): CerebelumConfig {
   return {
     baseUrl: BASE,
     apiKey: KEY || fileConfig.apiKey || '',
+    refreshToken: fileConfig.refreshToken || '',
     authUrl: AUTH_BASE,
   }
+}
+
+/**
+ * Save the API key (and optionally refresh token) to the local config file.
+ */
+export function saveTokens(accessToken: string, refreshToken?: string): string {
+  const configFile = `${process.env.HOME || '~'}/.cerebelum/config.json`
+  const configDir = `${process.env.HOME || '~'}/.cerebelum`
+  const fs = require('fs')
+
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true })
+  }
+
+  let config: Record<string, unknown> = {}
+  try {
+    config = JSON.parse(fs.readFileSync(configFile, 'utf-8'))
+  } catch {}
+
+  config.apiKey = accessToken
+  if (refreshToken) config.refreshToken = refreshToken
+  fs.writeFileSync(configFile, JSON.stringify(config, null, 2))
+
+  return configFile
 }
 
 export async function api(

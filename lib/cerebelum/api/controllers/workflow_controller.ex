@@ -2,12 +2,15 @@ defmodule Cerebelum.API.WorkflowController do
   @moduledoc """
   REST API Controller for workflow definitions.
 
-  Provides read-only access to available deterministic workflows registered in the system.
+  Provides read-only access to available deterministic workflows registered in the system,
+  and the ability to deploy new blueprint definitions.
   """
 
   use Cerebelum.API, :controller
 
   alias Cerebelum.Workflow.Registry
+  alias Cerebelum.Infrastructure.BlueprintRegistry
+  require Logger
 
   @doc """
   GET /api/v1/workflows
@@ -31,9 +34,11 @@ defmodule Cerebelum.API.WorkflowController do
 
     # Python worker workflows (via WorkerRegistry gRPC)
     python_workers = Cerebelum.Infrastructure.WorkerRegistry.get_workers()
+
     python_data =
       Enum.map(python_workers, fn {_worker_id, worker} ->
         workflows = worker[:workflows] || []
+
         Enum.map(workflows, fn wf ->
           %{
             id: wf[:id] || wf["id"],
@@ -47,13 +52,35 @@ defmodule Cerebelum.API.WorkflowController do
       end)
       |> List.flatten()
 
-    workflows = elixir_data ++ python_data
+    # Deployed blueprints (via BlueprintRegistry)
+    blueprints = BlueprintRegistry.list_blueprints()
+
+    blueprint_data =
+      Enum.map(blueprints, fn mod ->
+        case BlueprintRegistry.get_blueprint(mod) do
+          {:ok, bp} ->
+            %{
+              id: bp[:id] || mod,
+              label: bp[:name] || mod,
+              version: bp[:version] || "0.1.0",
+              steps: bp[:steps] || [],
+              language: bp[:language] || "python"
+            }
+
+          _ ->
+            nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    workflows = elixir_data ++ python_data ++ blueprint_data
 
     json(conn, %{data: workflows})
   end
 
   defp format_module_name(module) do
     name = inspect(module)
+
     name
     |> String.replace("Elixir.", "")
     |> String.replace(~r/([a-z])([A-Z])/, "\\1 \\2")
@@ -91,12 +118,97 @@ defmodule Cerebelum.API.WorkflowController do
     |> json(%{error: "Source code not available in production"})
   end
 
+  @doc """
+  POST /api/v1/workflows/deploy
+
+  Deploy a workflow blueprint. Accepts Python source code and stores it
+  as a registered workflow that can be executed.
+
+  Body:
+    {
+      "name": "my_workflow",
+      "module": "Elixir.MyWorkflow",
+      "code": "from cerebelum import step, workflow\n...",
+      "language": "python"
+    }
+  """
+  def deploy(conn, params) do
+    name = params["name"]
+    module = params["module"]
+    code = params["code"]
+    language = params["language"] || "python"
+
+    cond do
+      is_nil(name) or name == "" ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Missing 'name' field"})
+
+      is_nil(code) or code == "" ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Missing 'code' field"})
+
+      true ->
+        # Extract steps from the Python code
+        steps = extract_steps(code)
+
+        blueprint = %{
+          id: name,
+          name: name,
+          module: module,
+          code: code,
+          language: language,
+          steps: steps,
+          deployed_at: DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+
+        :ok = BlueprintRegistry.store_blueprint(name, blueprint)
+
+        Logger.info("Blueprint deployed: #{name} with #{length(steps)} steps")
+
+        conn
+        |> put_status(:created)
+        |> json(%{
+          data: %{
+            id: name,
+            name: name,
+            language: language,
+            steps: steps
+          }
+        })
+    end
+  end
+
+  # Extract @step-decorated function names from Python source code
+  defp extract_steps(code) do
+    code
+    |> String.split("\n")
+    |> Enum.reduce({nil, []}, fn line, {candidate, acc} ->
+      cond do
+        # Detect @step decorator followed by function definition
+        String.trim(line) == "@step" ->
+          {true, acc}
+
+        candidate && String.match?(line, ~r/^\s*(async\s+)?def\s+(\w+)/) ->
+          [_match, name] = Regex.run(~r/def\s+(\w+)/, line)
+          {false, [name | acc]}
+
+        true ->
+          {candidate, acc}
+      end
+    end)
+    |> elem(1)
+    |> Enum.reverse()
+  end
+
   defp find_workflow_in_workers(workers, workflow_id) do
     Enum.find_value(workers, fn {_worker_id, worker} ->
       workflows = worker[:workflows] || []
+
       Enum.find(workflows, fn wf ->
         (wf[:id] || wf["id"]) == workflow_id or
-        (wf[:name] || wf["name"]) == workflow_id
+          (wf[:name] || wf["name"]) == workflow_id
       end)
     end)
   end
