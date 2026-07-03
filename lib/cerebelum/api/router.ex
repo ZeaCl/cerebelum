@@ -3,6 +3,7 @@ defmodule Cerebelum.API.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug Cerebelum.API.Plugs.JWTAuth
   end
 
   # Internal API pipeline — no auth (for intra-network services)

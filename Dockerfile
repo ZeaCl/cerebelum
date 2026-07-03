@@ -1,78 +1,33 @@
-# ================================
-# Build Stage
-# ================================
-FROM elixir:1.18-alpine AS build
+# Cerebelum — Workflow Orchestration Engine
+# Multi-stage build: deps → build → runtime
 
-# Install build dependencies
-RUN apk add --no-cache \
-    build-base \
-    git \
-    curl
+FROM hexpm/elixir:1.18.3-erlang-27.3.3-alpine-3.21.3 AS deps
 
-# Prepare build directory
+RUN apk add --no-cache build-base git
 WORKDIR /app
-
-# Install hex and rebar
-RUN mix local.hex --force && \
-    mix local.rebar --force
-
-# Set build ENV
-ENV MIX_ENV=prod
-
-# Install mix dependencies
+RUN mix local.hex --force && mix local.rebar --force
 COPY mix.exs mix.lock ./
-RUN mix deps.get --only $MIX_ENV
-RUN mkdir config
+RUN mix deps.get --only prod
 
-# Copy compile-time config files before we compile dependencies
-# to ensure any relevant config changes trigger recompilation
-COPY config/config.exs config/${MIX_ENV}.exs config/
-RUN mix deps.compile
-
-# Copy application code
-COPY priv priv
-COPY lib lib
-
-# Compile the release
-RUN mix compile
-
-# Copy runtime configuration
-COPY config/runtime.exs config/
-
-# Compile assets (if any)
-# RUN mix assets.deploy
-
-# Create the release
-RUN mix release
-
-# ================================
-# Runtime Stage
-# ================================
-FROM elixir:1.18-alpine AS runtime
-
-# Install runtime dependencies (most already included in elixir image)
-RUN apk add --no-cache \
-    openssl \
-    ncurses-libs
-
-# Create app user
-RUN addgroup -g 1000 app && \
-    adduser -D -u 1000 -G app app
-WORKDIR /home/app
-
-# Set runner ENV
+FROM deps AS build
 ENV MIX_ENV=prod
+COPY config ./config
+COPY lib ./lib
+COPY priv ./priv
+RUN mix deps.compile
+RUN mix compile
+RUN mix release cerebelum
 
-# Copy the release from build stage
-COPY --from=build --chown=app:app /app/_build/${MIX_ENV}/rel/cerebelum_core ./
+FROM alpine:3.21.3 AS runtime
+RUN apk add --no-cache ncurses-libs openssl libstdc++
+WORKDIR /app
+COPY --from=build /app/_build/prod/rel/cerebelum ./
 
-# Switch to app user
-USER app
+ENV MIX_ENV=prod
+ENV PHX_SERVER=true
+ENV PORT=4001
 
-# Expose ports
-# 4001 for HTTP API (if you add Phoenix later)
-# 9090 for gRPC server
-EXPOSE 4001 9090
+EXPOSE 4001
+EXPOSE 50051
 
-# Start the application
-CMD ["bin/cerebelum_core", "start"]
+CMD ["/app/bin/cerebelum", "start"]

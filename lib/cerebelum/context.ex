@@ -32,6 +32,9 @@ defmodule Cerebelum.Context do
     # User inputs (from execute_workflow call)
     inputs: %{},
 
+    # Multi-tenancy
+    organization_id: nil,
+
     # Workflow state
     retry_count: 0,
     iteration: 0,
