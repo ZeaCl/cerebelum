@@ -10,12 +10,19 @@
 ---
 
 ## A. Database Init
-- [ ] A1. `init_aws.sh`: agregar `cerebelum_user` + `cerebelum_prod` database
+- [x] A1. `init_aws.sh`: agregar `cerebelum_user` + `cerebelum_prod` database
+- [x] A2. Commit + push `init_aws.sh` en `ZeaCl/zea`
 
-## B. Docker Image
-- [ ] B1. Build: `docker build -t ghcr.io/zeacl/cerebelum:latest .` (desde cerebelum-core/)
-- [ ] B2. Push: `docker push ghcr.io/zeacl/cerebelum:latest`
+## B. Docker Image & CI
+- [ ] B0. Commit + push `.github/workflows/publish.yml` (está untracked, CI no existe en remote)
+- [ ] B1. Disparar CI: `gh workflow run publish.yml` o push a main → build `ghcr.io/zeacl/cerebelum:latest`
+- [ ] B2. Verificar que el workflow corrió: `gh run list --repo ZeaCl/cerebelum`
 - [ ] B3. Verificar que `Release.migrate/0` funciona en el container
+
+## T. Infra / Terraform
+- [ ] T1. Commit + push `main.tf` + `userdata.tftpl` en `ZeaCl/infra`
+- [ ] T2. `terraform apply` → secrets (`cerebelum_db_password`, `secret_key_base_cerebelum`) + DNS `cerebelum.zea.cl`
+- [ ] T3. Verificar `cloudflare_record.cerebelum` resuelve a la IP del servidor
 
 ## C. Deploy en ZEA
 - [ ] C1. `docker compose -f docker-compose.prod.yml up -d` (desde zea/)
