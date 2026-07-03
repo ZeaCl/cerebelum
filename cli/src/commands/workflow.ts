@@ -90,14 +90,14 @@ export async function workflowRun(_sub: string, module: string, inputsStr: strin
     input: inputs,
   })
 
-  if (status === 201) {
-    const exec = (data as any).data
+  if (status === 200 || status === 201) {
+    const exec = (data as any).data || data
     if (json) {
       printJSON(exec)
     } else {
       console.log(`\n${color('green', '✅')} Workflow started!`)
-      console.log(`   ID:     ${color('bold', exec.id)}`)
-      console.log(`   Status: ${color('yellow', exec.status)}`)
+      console.log(`   ID:     ${color('bold', exec.id || exec.execution_id)}`)
+      console.log(`   Status: ${color(exec.status === 'completed' ? 'green' : 'yellow', exec.status || 'started')}`)
     }
   } else {
     const err = (data as any).error || `HTTP ${status}`

@@ -69,10 +69,14 @@ defmodule Cerebelum.API.ExecutionController do
       BlueprintRegistry.get_blueprint(workflow_name) != {:error, :not_found} ->
         case execute_blueprint(workflow_name, inputs) do
           {:ok, execution_id} ->
-            json(conn, %{
-              execution_id: execution_id,
-              status: "completed",
-              workflow: workflow_name
+            conn
+            |> put_status(:created)
+            |> json(%{
+              data: %{
+                id: execution_id,
+                status: "completed",
+                workflow: workflow_name
+              }
             })
 
           {:error, reason} ->
