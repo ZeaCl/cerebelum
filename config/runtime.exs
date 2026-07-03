@@ -18,8 +18,7 @@ if config_env() == :prod do
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     # Disable SSL for now (enable if your PostgreSQL requires it)
-    ssl: false,
-    socket_options: [:inet6]
+    ssl: false
 
   # gRPC server configuration
   enable_grpc = System.get_env("ENABLE_GRPC_SERVER", "true") == "true"
