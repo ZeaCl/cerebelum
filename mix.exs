@@ -107,7 +107,7 @@ defmodule Cerebelum.MixProject do
 
       # HTTP API (REST)
       {:phoenix, "~> 1.7"},
-      {:plug_cowboy, "~> 2.7"},
+      {:bandit, "~> 1.5"},
       {:cors_plug, "~> 3.0"},
       {:joken, "~> 2.6"},
       {:jose, "~> 1.11"},
