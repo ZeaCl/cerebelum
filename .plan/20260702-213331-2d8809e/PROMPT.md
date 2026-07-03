@@ -32,6 +32,14 @@ We just completed a major refactor:
 | `ZeaCl/infra/terraform/main.tf` | Secrets + DNS for cerebelum |
 | `ZeaCl/infra/terraform/userdata.tftpl` | Env vars for cerebelum |
 
+## Agent Instructions
+
+**Plan path**: `ZeaCl/cerebelum/.plan/20260702-213331-2d8809e/`
+
+**CRITICAL**: As you complete each item, mark it `[x]` in `PLAN.md` and push the change. This is how we track progress. Never leave an item unmarked after working on it.
+
+**Work order**: A → B → C → D → E → F → G → H. Don't skip phases.
+
 ## Repos involved
 
 ```
