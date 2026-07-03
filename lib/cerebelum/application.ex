@@ -7,6 +7,9 @@ defmodule Cerebelum.Application do
   def start(_type, _args) do
     # Base children that always start
     base_children = [
+      # HTTP API (Phoenix Endpoint)
+      Cerebelum.API.Endpoint,
+
       # Database repo
       Cerebelum.Repo,
 

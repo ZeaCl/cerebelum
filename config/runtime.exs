@@ -39,6 +39,19 @@ if config_env() == :prod do
   config :cerebelum,
     secret_key_base: secret_key_base
 
+  # Phoenix endpoint HTTP server
+  config :cerebelum, Cerebelum.API.Endpoint,
+    server: true,
+    http: [
+      port: String.to_integer(System.get_env("PORT") || "4001"),
+      transport_options: [socket_opts: [:inet6, :inet]]
+    ],
+    url: [
+      host: System.get_env("PHX_HOST") || "localhost",
+      port: String.to_integer(System.get_env("PORT") || "4001")
+    ],
+    secret_key_base: secret_key_base
+
   # Release configuration
   if release_node = System.get_env("RELEASE_NODE") do
     config :cerebelum,

@@ -42,7 +42,7 @@ config :cerebelum,
 # Phoenix endpoint config
 config :cerebelum, Cerebelum.API.Endpoint,
   url: [host: "localhost"],
-  adapter: Bandit.PhoenixAdapter,
+  adapter: Phoenix.Endpoint.Cowboy2Adapter,
   render_errors: [formats: [json: Cerebelum.API.ErrorJSON]],
   pubsub_server: Cerebelum.API.PubSub
 
