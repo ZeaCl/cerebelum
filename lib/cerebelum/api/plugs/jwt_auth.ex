@@ -41,22 +41,54 @@ defmodule Cerebelum.API.Plugs.JWTAuth do
     jwks_url = Application.get_env(:cerebelum, :thalamus, [])
                |> Keyword.get(:jwks_url, "http://thalamus:4000/.well-known/jwks.json")
 
-    jwks = fetch_jwks(jwks_url)
+    jwks_map = fetch_jwks(jwks_url)
 
-    case JOSE.JWT.verify_strict(jwks, ["RS256", "HS256"], token) do
-      {true, %JOSE.JWT{fields: claims}, _} ->
-        {:ok, claims}
-      {false, _, _} ->
-        Logger.warning("JWT verification failed")
-        :error
-      {:error, reason} ->
-        Logger.warning("JWT verification error: #{inspect(reason)}")
-        :error
+    with {:ok, header} <- peek_header(token),
+         {:ok, jwk} <- find_key(jwks_map, header["kid"]) do
+      case JOSE.JWT.verify_strict(jwk, ["RS256"], token) do
+        {true, %JOSE.JWT{fields: claims}, _} ->
+          {:ok, claims}
+        {false, _, _} ->
+          Logger.warning("JWT verification failed")
+          :error
+        {:error, reason} ->
+          Logger.warning("JWT verification error: #{inspect(reason)}")
+          :error
+      end
+    else
+      _ -> :error
     end
   rescue
     e ->
       Logger.error("JWT validation exception: #{Exception.message(e)}")
       :error
+  end
+
+  # Parse JWT header without verifying to get 'kid'
+  defp peek_header(token) do
+    [header_b64 | _] = String.split(token, ".")
+    padded = pad_b64(header_b64)
+    header = padded |> Base.decode64!() |> Jason.decode!()
+    {:ok, header}
+  rescue
+    _ -> :error
+  end
+
+  defp pad_b64(b64) do
+    case rem(byte_size(b64), 4) do
+      2 -> b64 <> "=="
+      3 -> b64 <> "="
+      _ -> b64
+    end
+  end
+
+  # Find and build a JOSE JWK from JWKS by kid
+  defp find_key(jwks_map, kid) do
+    keys = jwks_map["keys"] || []
+    case Enum.find(keys, &(&1["kid"] == kid)) do
+      nil -> :error
+      key_map -> {:ok, JOSE.JWK.from_map(key_map)}
+    end
   end
 
   defp fetch_jwks(url) do
