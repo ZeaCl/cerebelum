@@ -13,6 +13,9 @@ defmodule Cerebelum.Application do
       # Database repo
       Cerebelum.Repo,
 
+      # Workflow registry for managing workflow definitions
+      Cerebelum.Workflow.Registry,
+
       # Event store for event sourcing
       Cerebelum.EventStore,
 
