@@ -32,12 +32,12 @@
 ## D. Validación REST API
 - [x] D1. `curl https://cerebelum.zea.cl/health` → 200
 - [x] D2. `curl https://cerebelum.zea.cl/api/v1/executions` → 401 (sin token)
-- [ ] D3. `curl -H "Authorization: Bearer <JWT>" https://cerebelum.zea.cl/api/v1/executions` → 200
+- [x] D3. `curl -H "Authorization: Bearer <JWT>" https://cerebelum.zea.cl/api/v1/executions` → 200
 
 ## E. Validación Demo Cloud
-- [ ] E1. Clonar: `git clone ZeaCl/cerebelum-demo-cloud`
-- [ ] E2. `pip install cerebelum-sdk`
-- [ ] E3. `python template/workflow.py` → `Status: completed` (local)
+- [x] E1. Clonar: `git clone ZeaCl/cerebelum-demo-cloud`
+- [x] E2. `pip install cerebelum-sdk`
+- [x] E3. `python template/workflow.py` → `Status: completed` (local)
 - [ ] E4. `npx @zea.cl/cerebelum-cli login` → obtiene JWT
 - [ ] E5. `cerebelum deploy template/workflow.py` → blueprint subido
 - [ ] E6. `cerebelum run MyWorkflow --input '{"name":"ZEA"}'` → completed
