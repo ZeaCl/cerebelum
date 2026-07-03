@@ -10,6 +10,9 @@ defmodule Cerebelum.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
 
+      # Release
+      releases: [cerebelum: []],
+
       # Aliases
       aliases: aliases(),
 
