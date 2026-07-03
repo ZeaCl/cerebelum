@@ -190,7 +190,7 @@ defmodule Cerebelum.Execution.Engine.Data do
   """
   @spec finished?(t()) :: boolean()
   def finished?(data) do
-    data.current_step_index >= length(data.workflow_metadata.timeline)
+    data.current_step_index >= length(data.timeline)
   end
 
   @doc """
@@ -266,7 +266,7 @@ defmodule Cerebelum.Execution.Engine.Data do
   """
   @spec build_status(t(), atom()) :: map()
   def build_status(data, state) do
-    timeline_length = length(data.workflow_metadata.timeline)
+    timeline_length = length(data.timeline)
 
     error_info =
       if data.error do
