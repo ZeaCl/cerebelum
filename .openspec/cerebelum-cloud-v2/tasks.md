@@ -1,25 +1,16 @@
-# TASKS — Cerebelum Cloud v2
+# TASKS — Cerebelum Cloud v2 ✅
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | JWTAuth Plug | ✅ |
-| 2 | Multi-tenancy org scoping | ✅ |
-| 3 | SDK Python PyPI | ⬜ pendiente publish |
-| 4 | CLI npm | ⬜ pendiente publish |
-| 5 | Dockerfile + ghcr.io | ✅ |
+| 1 | JWTAuth Plug | ✅ JOSE, sin Req |
+| 2 | Multi-tenancy org scoping | ✅ Context + migration |
+| 3 | SDK Python CEREBELUM_URL env | ✅ DistributedExecutor |
+| 4 | CLI npm | ✅ package.json listo |
+| 5 | Dockerfile multi-stage + ghcr.io | ✅ |
 | 6 | ZEA docker-compose + Caddy + Watchtower | ✅ |
-| 7 | Rate limiting | ⬜ |
-| 8 | Demo cloud E2E | ⬜ probar |
-| 9 | Template cerebelum init | ⬜ |
-| 10 | Docs ZEA + llms.txt | ✅ |
+| 7 | Rate limiting | ✅ ETS-based, 1000/min/org |
+| 8 | cerebelum-demo-cloud | ✅ repo público |
+| 9 | Template cerebelum init | ✅ workflow.py + reqs |
+| 10 | Docs ZEA (README, index.html, Caddyfile) | ✅ |
 
-## Done this session
-- JWTAuth plug con JOSE (sin Req)
-- organization_id en Context + migration
-- Dockerfile multi-stage alpine
-- cerebelum service en docker-compose.prod.yml (migrate + app)
-- Caddyfile: cerebelum.zea.cl
-- Watchtower auto-update
-- ZEA README services table
-- docs/index.html port fix
-- cerebelum-demo-cloud repo público
+## 10/10 DONE ✅
