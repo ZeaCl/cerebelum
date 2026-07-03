@@ -86,8 +86,8 @@ export async function workflowRun(_sub: string, module: string, inputsStr: strin
   }
 
   const { status, data } = await api('POST', '/api/v1/executions', {
-    workflow_module: module,
-    inputs,
+    workflow: module,
+    input: inputs,
   })
 
   if (status === 201) {
