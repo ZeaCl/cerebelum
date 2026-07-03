@@ -1,0 +1,26 @@
+{
+  "name": "@zea.cl/cerebelum-cli",
+  "version": "0.1.0",
+  "description": "Cerebelum CLI — Deterministic workflow orchestration from the terminal",
+  "bin": {
+    "cerebelum": "./bin/cerebelum.js"
+  },
+  "files": ["dist", "bin"],
+  "keywords": ["workflow", "orchestration", "cli", "ai", "agent", "temporal"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZeaCl/cerebelum.git",
+    "directory": "cli"
+  }
+}
