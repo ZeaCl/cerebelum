@@ -43,8 +43,7 @@ if config_env() == :prod do
   config :cerebelum, Cerebelum.API.Endpoint,
     server: true,
     http: [
-      port: String.to_integer(System.get_env("PORT") || "4001"),
-      transport_options: [socket_opts: [:inet6, :inet]]
+      port: String.to_integer(System.get_env("PORT") || "4001")
     ],
     url: [
       host: System.get_env("PHX_HOST") || "localhost",
