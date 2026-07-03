@@ -61,4 +61,11 @@
   - [ ] 8.1 `workflow.py` template con `@step` + `@workflow` ejemplo
   - [ ] 8.2 `requirements.txt` con `cerebelum-sdk`
   - [ ] 8.3 `README.md` con los 3 pasos del quickstart
-  - _Requirements: R2.2, R6.1, R6.2, R6.3_
+  _Requirements: R2.2, R6.1, R6.2, R6.3_
+
+- [ ] 9. **Documentación en ZEA Platform**
+  - [ ] 9.1 Agregar Cerebelum a tabla de servicios en `zea/README.md`
+  - [ ] 9.2 Actualizar `zea/docs/index.html` con endpoints y port
+  - [ ] 9.3 Agregar sección Cerebelum en `llms.txt` (AI agents doc)
+  - [ ] 9.4 Incluir quickstart, comandos CLI, y links a SDKs en la doc
+  _Requirements: R6_
