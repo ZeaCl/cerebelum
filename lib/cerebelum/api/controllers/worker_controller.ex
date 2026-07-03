@@ -18,8 +18,13 @@ defmodule Cerebelum.API.WorkerController do
   def register(conn, %{"worker_id" => worker_id, "url" => url} = params) do
     workflows = params["workflows"] || []
 
-    # Store worker info
-    case Cerebelum.WorkerRegistry.register_worker(worker_id, url, workflows) do
+    worker_attrs = %{
+      url: url,
+      workflows: workflows,
+      registered_at: DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+
+    case Cerebelum.Infrastructure.WorkerRegistry.register_worker(worker_id, worker_attrs) do
       :ok ->
         Logger.info("Worker registered: #{worker_id} at #{url} with #{length(workflows)} workflows")
         json(conn, %{ok: true})
@@ -35,7 +40,7 @@ defmodule Cerebelum.API.WorkerController do
   List all registered workers.
   """
   def index(conn, _params) do
-    workers = Cerebelum.WorkerRegistry.list_workers()
+    workers = Cerebelum.Infrastructure.WorkerRegistry.get_workers()
     json(conn, %{data: workers})
   end
 end

@@ -24,21 +24,36 @@ defmodule Cerebelum.API.WorkflowController do
           id: inspect(wf.module),
           label: format_module_name(wf.module),
           version: wf.version,
-          steps: []
+          steps: [],
+          language: "elixir"
         }
       end)
 
-    # Python worker workflows (new — via gRPC Register)
-    python_workflows = Cerebelum.WorkerRegistry.list_all()
+    # Python worker workflows (via WorkerRegistry gRPC)
+    python_workers = Cerebelum.Infrastructure.WorkerRegistry.get_workers()
+    python_data =
+      Enum.map(python_workers, fn {_worker_id, worker} ->
+        workflows = worker[:workflows] || []
+        Enum.map(workflows, fn wf ->
+          %{
+            id: wf[:id] || wf["id"],
+            label: wf[:name] || wf["name"] || wf[:id] || wf["id"],
+            version: wf[:version] || wf["version"] || "0.1.0",
+            steps: wf[:steps] || wf["steps"] || [],
+            language: "python",
+            worker_id: worker[:id] || worker["id"]
+          }
+        end)
+      end)
+      |> List.flatten()
 
-    workflows = elixir_data ++ python_workflows
+    workflows = elixir_data ++ python_data
 
     json(conn, %{data: workflows})
   end
 
   defp format_module_name(module) do
     name = inspect(module)
-    # Elixir.FundCreateWorkflow -> "Fund Create Workflow"
     name
     |> String.replace("Elixir.", "")
     |> String.replace(~r/([a-z])([A-Z])/, "\\1 \\2")
@@ -50,21 +65,18 @@ defmodule Cerebelum.API.WorkflowController do
   Returns full metadata for a specific workflow, including steps, fields, and worker info.
   """
   def show(conn, %{"id" => workflow_id}) do
-    case Cerebelum.WorkerRegistry.get_workflow(workflow_id) do
+    # Search in workers registry
+    python_workers = Cerebelum.Infrastructure.WorkerRegistry.get_workers()
+    workflow = find_workflow_in_workers(python_workers, workflow_id)
+
+    case workflow do
       nil ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Workflow not found"})
 
-      workflow ->
-        # Enrich with worker URL for code fetching
-        case Cerebelum.WorkerRegistry.find_worker_for_workflow(workflow_id) do
-          {:ok, _worker_id, worker_url} ->
-            json(conn, %{data: Map.put(workflow, "worker_url", worker_url)})
-
-          {:error, :not_found} ->
-            json(conn, %{data: workflow})
-        end
+      wf ->
+        json(conn, %{data: wf})
     end
   end
 
@@ -72,50 +84,20 @@ defmodule Cerebelum.API.WorkflowController do
   GET /api/v1/workflows/:id/code
 
   Returns the Python source code for a workflow.
-  Reads from the worker's filesystem path.
   """
   def code(conn, %{"id" => workflow_id}) do
-    # Try to find the source file from the worker registry
-    source_path = find_workflow_source(workflow_id)
-
-    case source_path do
-      nil ->
-        conn
-        |> put_status(:not_found)
-        |> json(%{error: "Source code not available"})
-
-      path ->
-        case File.read(path) do
-          {:ok, content} ->
-            json(conn, %{
-              data: %{
-                id: workflow_id,
-                language: "python",
-                source: content,
-                path: path
-              }
-            })
-
-          {:error, _reason} ->
-            conn
-            |> put_status(:not_found)
-            |> json(%{error: "Cannot read source file"})
-        end
-    end
+    conn
+    |> put_status(:not_found)
+    |> json(%{error: "Source code not available in production"})
   end
 
-  defp find_workflow_source(workflow_id) do
-    # Try common locations for workflow source files
-    base_paths = [
-      "/workspace/cerebelum-core/examples/python-sdk",
-      "/app",
-      System.get_env("WORKFLOW_SOURCES", "/workspace/cerebelum-core/examples/python-sdk")
-    ]
-
-    Enum.find_value(base_paths, fn base ->
-      name = if String.ends_with?(workflow_id, ".py"), do: workflow_id, else: "#{workflow_id}.py"
-      path = Path.join(base, name)
-      if File.exists?(path), do: path
+  defp find_workflow_in_workers(workers, workflow_id) do
+    Enum.find_value(workers, fn {_worker_id, worker} ->
+      workflows = worker[:workflows] || []
+      Enum.find(workflows, fn wf ->
+        (wf[:id] || wf["id"]) == workflow_id or
+        (wf[:name] || wf["name"]) == workflow_id
+      end)
     end)
   end
 end
