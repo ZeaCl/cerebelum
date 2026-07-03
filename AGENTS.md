@@ -1,15 +1,38 @@
 # AGENTS.md — Cerebelum AI Agent Guide
 
-> **Para agentes de IA que toman la posta del proyecto.**
-> Leé esto primero. El estado en vivo está en el board, no acá.
+> Para cualquier agente de IA que tome la posta. **El board es la única fuente de verdad.**
+> Este archivo no cambia — el estado del proyecto vive en el board, no acá.
 
-## Qué es Cerebelum
+## Cerebelum
 
-Motor de orquestación de workflows determinístico. Elixir/OTP, event sourcing, REST + gRPC, SDKs Python/TypeScript, desplegado en ZEA Platform.
+Motor de orquestación de workflows determinístico. Elixir/OTP, event sourcing, REST + gRPC, SDKs Python/TypeScript. Corre on-premise (Elixir, sin infra) o en cloud (ZEA Platform, multi-tenant, JWT).
 
-**Repos:**
+## Board — fuente de verdad
 
-| Repo | Rol |
+📋 **[GitHub Project](https://github.com/orgs/ZeaCl/projects/6)**
+
+Todo lo que hay que hacer está ahí. Todo lo que ya se hizo, también. Antes de tocar código, mirá el board. Al terminar algo, reflejalo en el board.
+
+### Reglas del board
+
+1. **Al tomar una tarea** → movela a `In Progress`. No la dejes en `Todo`.
+2. **Al terminar** → movela a `Done`. Si es un issue, cerrarlo con `gh issue close N --reason completed`.
+3. **Si algo está bloqueado** → `Blocked`. Poné en el body por qué y qué se necesita.
+4. **Nunca dejes tareas en `Todo` que ya empezaste.** Otros pueden estar mirando el board.
+5. **El parent issue se cierra solo** cuando todos sus sub-issues están completos.
+
+## Cómo arrancar
+
+1. Abrí el [board](https://github.com/orgs/ZeaCl/projects/6)
+2. Buscá issues en `Todo`
+3. Agarrá uno, movelo a `In Progress`
+4. Leé el código relevante (ver mapa abajo)
+5. Implementá, probá, pusheá
+6. Cerrá el issue, movelo a `Done`
+
+## Repos
+
+| Repo | Qué es |
 |---|---|
 | `ZeaCl/cerebelum` | Engine (este repo) |
 | `ZeaCl/cerebelum-python` | Python SDK (`pip install cerebelum-sdk`) |
@@ -17,102 +40,38 @@ Motor de orquestación de workflows determinístico. Elixir/OTP, event sourcing,
 | `ZeaCl/zea` | ZEA Platform (docker-compose, Caddy, docs) |
 | `ZeaCl/infra` | Terraform (AWS, Cloudflare, secrets) |
 
-## Estado actual
-
-**📋 Board**: https://github.com/orgs/ZeaCl/projects/6
-
-El board SIEMPRE tiene la verdad. Usalo como fuente primaria:
-- Issues organizados en **8 fases** (A→H), cada una es un parent issue con sub-issues
-- **1 milestone**: `Cerebelum Production Deploy`
-- El board se actualiza solo al cerrar issues
-
-**Producción**: Cerebelum corre en `https://cerebelum.zea.cl` (EC2, Docker, Caddy, Watchtower).
-
-**Lo completado**: Fases A, B, C, D → 19/30 sub-issues ✅
-**Lo pendiente**: Fases E (4 items de demo-cloud), F (gRPC worker), G (multi-tenancy), H (docs finales)
-
-## Cómo trabajar
-
-### Commits
-
-Usá [Conventional Commits](https://www.conventionalcommits.org/):
-```
-feat: descripción     ← nueva funcionalidad
-fix: descripción      ← bug fix
-docs: descripción     ← documentación
-refactor: descripción ← refactor sin cambio funcional
-```
-
-### Código — Engine (Elixir)
-
-```bash
-cd cerebelum-core
-mix deps.get && mix compile
-mix test                    # tests
-mix format && mix credo     # calidad
-```
-
-Estructura: Clean Architecture. Domain → Application → Infrastructure → Presentation.
-Nunca mezcles capas. Los plugs van en `lib/cerebelum/api/plugs/`.
-
-### Código — Python SDK
-
-```bash
-cd cerebelum-python
-pip install -e .
-python examples/01_hello_world.py
-```
-
-### Código — ZEA Platform
-
-El `docker-compose.prod.yml` en `ZeaCl/zea` tiene los servicios. Cerebelum sigue el patrón de Thalamus/Cranium: `migrate_X` + `X` + Caddy + Watchtower.
-
-### Deploy
-
-1. Push a `main` en `ZeaCl/cerebelum` → GitHub Actions build + push `ghcr.io/zeacl/cerebelum:latest`
-2. Watchtower en EC2 hace auto-pull cada 5 min
-3. O manual: `docker pull ghcr.io/zeacl/cerebelum:latest && docker compose -f docker-compose.prod.yml up -d cerebelum`
-
-### Planes de deploy
-
-Están en `.plan/YYYYMMDD-HHMMSS-<hash>/`. Cada plan tiene `PLAN.md` (checklist), `PROMPT.md` (contexto para agente), `GAPS.md` (lo que falta).
-
 ## Dónde está cada cosa
 
 | Qué | Dónde |
 |---|---|
 | Estado del proyecto | [Board](https://github.com/orgs/ZeaCl/projects/6) |
-| Spec actual | `.openspec/cerebelum-cloud-v2/` |
-| Plan de deploy | `.plan/20260702-213331-2d8809e/` |
-| Documentación | `docs/index.md` (hub) |
-| API REST | `docs/api/rest.md` |
-| gRPC | `docs/api/grpc.md` |
-| Workflow DSL | `docs/workflow-dsl.md` |
-| CLI | `docs/cli.md` |
+| Spec activa | `.openspec/` |
+| Plan de deploy | `.plan/` |
+| Documentación | `docs/index.md` |
 | Contributing | `CONTRIBUTING.md` |
-| Changelog | `CHANGELOG.md` |
 | Seguridad | `SECURITY.md` |
 
-## Convenciones
+## Commits
 
-- **Issues**: parent = fase (A-H), sub-issues = tareas. Al completar un sub-issue → `gh issue close N --reason completed`
-- **Labels**: `engine` (código), `platform` (ZEA), `infra` (Terraform), `sdk` (Python/TS)
-- **Milestone**: solo uno — `Cerebelum Production Deploy`
-- **No crees specs nuevas** sin approval. La spec activa es `.openspec/cerebelum-cloud-v2/`
-- **Testeá en producción** cuando sea posible — `curl https://cerebelum.zea.cl/health`
-- **No modifiques `docker-compose.prod.yml` de ZEA** sin revisar el patrón de Thalamus/Cranium primero
-- **CLI está en este repo** (`cli/`), no en un repo separado
+[Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`.
 
-## Para producción
+## Código
 
 ```bash
-# Health check
+mix deps.get && mix compile
+mix test && mix format && mix credo
+```
+
+Clean Architecture: Domain → Application → Infrastructure → Presentation.
+
+## Deploy
+
+1. Push a `main` → GitHub Actions build + push `ghcr.io/zeacl/cerebelum:latest`
+2. Watchtower en EC2 auto-pull cada 5 min
+3. O manual: `docker pull ghcr.io/zeacl/cerebelum:latest && docker compose -f docker-compose.prod.yml up -d cerebelum`
+
+## Producción
+
+```bash
 curl https://cerebelum.zea.cl/health
-
-# Auth check
-curl https://cerebelum.zea.cl/api/v1/executions          # → 401
-curl -H "Authorization: Bearer <JWT>" .../api/v1/executions  # → 200
-
-# Doctor (si el CLI está instalado)
-npx @zea.cl/cerebelum-cli doctor
 ```
