@@ -42,7 +42,7 @@
 - [ ] E5. `cerebelum deploy template/workflow.py` → blueprint subido
 - [ ] E6. `cerebelum run MyWorkflow --input '{"name":"ZEA"}'` → completed
 - [ ] E7. `cerebelum logs <id> --follow` → streaming eventos
-- [ ] E8. `cerebelum doctor` → health OK
+- [x] E8. `cerebelum doctor` → health OK
 
 ## F. Validación gRPC + Python Worker
 - [ ] F1. Worker Python registrado
