@@ -49,9 +49,10 @@
 - [x] Certificados mTLS generados (CA + server + client)
 - [x] gRPC server con mTLS en prod → health: "running"
 - [x] Puerto 50051 abierto en AWS SG vía terraform apply
-- [x] Worker Python registrado vía mTLS directo (sin tunnel)
-- [ ] Worker lifecycle completo: poll → execute → submit
-- [ ] Eventos en EventStore con organization_id
+- [x] Worker Python registrado vía mTLS
+- [x] Worker lifecycle completo: poll → execute → submit
+- [x] Eventos emitidos vía Engine: Started → StepExecuted → Completed
+- [ ] Eventos con organization_id
 
 ## G. Multi-tenancy
 - [ ] G1. Org A no ve ejecuciones de Org B
