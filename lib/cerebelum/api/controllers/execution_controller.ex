@@ -194,7 +194,7 @@ defmodule Cerebelum.API.ExecutionController do
   # ── Helpers ──
 
   # Execute a blueprint stored in BlueprintRegistry.
-  # Simulates workflow execution by emitting lifecycle events for each step.
+  # Queues initial tasks for the worker pool via TaskRouter.
   defp execute_blueprint(workflow_name, inputs) do
     {:ok, blueprint} = BlueprintRegistry.get_blueprint(workflow_name)
     steps = blueprint[:steps] || []
@@ -206,27 +206,15 @@ defmodule Cerebelum.API.ExecutionController do
     start_event = Cerebelum.Event.ExecutionStarted.new(execution_id, workflow_name, inputs)
     {:ok, _} = EventStore.append_sync(execution_id, start_event, 0)
 
-    # Emit StepStarted + StepCompleted for each step
-    Enum.with_index(steps, 1)
-    |> Enum.reduce(1, fn {step_name, idx}, version ->
-      step_name_atom = String.to_atom(step_name)
+    # Queue initial tasks to TaskRouter (workers will pick them up)
+    {:ok, _task_ids} = Cerebelum.Infrastructure.TaskRouter.queue_initial_tasks(
+      execution_id,
+      workflow_name,
+      steps,
+      inputs
+    )
 
-      step_start = Cerebelum.Event.StepStarted.new(execution_id, step_name_atom)
-      {:ok, _} = EventStore.append_sync(execution_id, step_start, version)
-
-      result = %{"ok" => "Hello, #{Map.get(inputs, "name", "World")}!"}
-      step_complete = Cerebelum.Event.StepCompleted.new(execution_id, step_name_atom, result)
-      {:ok, _} = EventStore.append_sync(execution_id, step_complete, version + 1)
-
-      version + 2
-    end)
-
-    # Emit ExecutionCompletedEvent
-    final_result = %{"ok" => "Hello, #{Map.get(inputs, "name", "World")}!"}
-    completed_event = Cerebelum.Event.ExecutionCompleted.new(execution_id, final_result)
-    {:ok, _} = EventStore.append_sync(execution_id, completed_event, length(steps) * 2 + 1)
-
-    Logger.info("Blueprint executed: #{workflow_name} (#{length(steps)} steps) → #{execution_id}")
+    Logger.info("Blueprint execution started: #{workflow_name} (#{length(steps)} steps)→ #{execution_id}, tasks queued")
     {:ok, execution_id}
   end
 
