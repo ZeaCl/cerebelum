@@ -74,7 +74,7 @@ defmodule Cerebelum.API.ExecutionController do
             |> json(%{
               data: %{
                 id: execution_id,
-                status: "completed",
+                status: "started",
                 workflow: workflow_name
               }
             })
@@ -194,27 +194,39 @@ defmodule Cerebelum.API.ExecutionController do
   # ── Helpers ──
 
   # Execute a blueprint stored in BlueprintRegistry.
-  # Queues initial tasks for the worker pool via TaskRouter.
+  # Uses WorkflowDelegatingWorkflow + Engine (same path as gRPC execute_workflow).
   defp execute_blueprint(workflow_name, inputs) do
     {:ok, blueprint} = BlueprintRegistry.get_blueprint(workflow_name)
     steps = blueprint[:steps] || []
 
-    execution_id = "exec_#{System.unique_integer([:positive])}_#{:rand.uniform(999_999)}"
-    now = DateTime.utc_now()
+    # Build blueprint definition in the format WorkflowDelegatingWorkflow expects
+    definition = %{
+      timeline: Enum.map(steps, fn name -> %{name: name, depends_on: []} end),
+      diverge_rules: [],
+      branch_rules: [],
+      inputs: %{}
+    }
 
-    # Emit ExecutionStartedEvent
-    start_event = Cerebelum.Event.ExecutionStarted.new(execution_id, workflow_name, inputs)
-    {:ok, _} = EventStore.append_sync(execution_id, start_event, 0)
+    full_blueprint = %{
+      workflow_module: workflow_name,
+      language: blueprint[:language] || "python",
+      definition: definition,
+      version: "deployed-0.1.0"
+    }
 
-    # Queue initial tasks to TaskRouter (workers will pick them up)
-    {:ok, _task_ids} = Cerebelum.Infrastructure.TaskRouter.queue_initial_tasks(
-      execution_id,
-      workflow_name,
-      steps,
-      inputs
+    # Start via Engine — same path as gRPC execute_workflow
+    {:ok, pid} = Cerebelum.Execution.Supervisor.start_execution(
+      Cerebelum.WorkflowDelegatingWorkflow,
+      inputs,
+      blueprint: full_blueprint,
+      blueprint_name: workflow_name,
+      execution_mode: :distributed
     )
 
-    Logger.info("Blueprint execution started: #{workflow_name} (#{length(steps)} steps)→ #{execution_id}, tasks queued")
+    execution_id = Cerebelum.Execution.Engine.get_execution_id(pid)
+
+    require Logger
+    Logger.info("Blueprint execution started via Engine: #{workflow_name} → #{execution_id}")
     {:ok, execution_id}
   end
 
