@@ -54,9 +54,13 @@
 - [x] Eventos emitidos vía Engine: Started → StepExecuted → Completed
 - [ ] Eventos con organization_id
 
-## G. Multi-tenancy
-- [ ] G1. Org A no ve ejecuciones de Org B
-- [ ] G2. Rate limit: >1000 req/min → 429
+## G. Multi-tenancy & Rate Limiting
+- [x] Filtro de ejecuciones por organization_id del JWT
+- [x] ETS mapping execution_id → org_id
+- [x] Rate limiter funcional (1000 req/min, per org)
+- [x] Rate limit headers: x-ratelimit-remaining, retry-after
+- [ ] Test cross-org con segundo JWT (Südlich)
+- [ ] org_id en eventos del EventStore
 
 ## H. Docs finales
 - [ ] H1. `llms.txt` actualizado con Cerebelum

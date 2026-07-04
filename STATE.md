@@ -39,9 +39,18 @@ Validar que un Python Worker se conecta al engine vía gRPC con mTLS, registra w
 
 ---
 
-## ⚪ Fase G — Sin empezar
-- Multi-tenancy: Org A no ve ejecuciones de Org B
-- Rate limit: 429 al exceder 1000 req/min
+## ⚪ Fase G — Multi-tenancy & Rate Limiting
+
+### Objetivo
+1. Org A no ve ejecuciones de Org B
+2. Rate limit: 429 al exceder 1000 req/min
+
+### Progreso
+- [ ] G1. Diagnosticar estado actual del rate limiter
+- [ ] G2. Diagnosticar extracción de org_id del JWT
+- [ ] G3. Filtrar ejecuciones por org_id
+- [ ] G4. Test: Org A no ve ejecuciones de Org B
+- [ ] G5. Test: Rate limit → 429
 
 ## ⚪ Fase H — Sin empezar
 - `llms.txt` actualizado
