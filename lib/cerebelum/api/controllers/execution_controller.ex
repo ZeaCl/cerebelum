@@ -10,6 +10,25 @@ defmodule Cerebelum.API.ExecutionController do
   alias Cerebelum.Infrastructure.BlueprintRegistry
   require Logger
 
+  @execution_orgs_table :execution_orgs
+
+  # Store organization_id for an execution
+  defp put_execution_org(execution_id, org_id) do
+    if :ets.whereis(@execution_orgs_table) == :undefined do
+      :ets.new(@execution_orgs_table, [:named_table, :public, :set])
+    end
+    :ets.insert(@execution_orgs_table, {execution_id, org_id})
+  end
+
+  # Get organization_id for an execution
+  defp get_execution_org(execution_id) do
+    if :ets.whereis(@execution_orgs_table) == :undefined, do: :ets.new(@execution_orgs_table, [:named_table, :public, :set])
+    case :ets.lookup(@execution_orgs_table, execution_id) do
+      [{^execution_id, org_id}] -> org_id
+      [] -> nil
+    end
+  end
+
   @doc """
   List all executions with optional filters.
 
@@ -17,6 +36,7 @@ defmodule Cerebelum.API.ExecutionController do
   """
   def index(conn, params) do
     status_filter = params["status"]
+    org_id = conn.assigns[:organization_id]
 
     {:ok, execution_ids, total} =
       EventStore.list_executions(
@@ -27,13 +47,20 @@ defmodule Cerebelum.API.ExecutionController do
 
     executions =
       Enum.map(execution_ids, fn exec_id ->
-        case EventStore.get_events(exec_id) do
-          {:ok, events} -> format_execution_summary(exec_id, events)
-          _ -> %{execution_id: exec_id, error: "events_not_found"}
+        # Filter by organization_id if present
+        exec_org = get_execution_org(exec_id)
+        if org_id == nil or exec_org == nil or exec_org == org_id do
+          case EventStore.get_events(exec_id) do
+            {:ok, events} -> format_execution_summary(exec_id, events)
+            _ -> nil
+          end
+        else
+          nil
         end
       end)
+      |> Enum.reject(&is_nil/1)
 
-    json(conn, %{executions: executions, total: total})
+    json(conn, %{executions: executions, total: length(executions)})
   end
 
   @doc """
@@ -45,6 +72,7 @@ defmodule Cerebelum.API.ExecutionController do
   def create(conn, params) do
     workflow_name = params["workflow"] || params["workflow_module"]
     inputs = params["input"] || params["inputs"] || %{}
+    org_id = conn.assigns[:organization_id]
 
     workflow_module = find_workflow_module(workflow_name)
 
@@ -53,6 +81,7 @@ defmodule Cerebelum.API.ExecutionController do
       workflow_module != nil ->
         case Cerebelum.execute_workflow(workflow_module, inputs) do
           {:ok, execution} ->
+            if org_id, do: put_execution_org(execution.id, org_id)
             json(conn, %{
               execution_id: execution.id,
               status: "started",
@@ -69,6 +98,7 @@ defmodule Cerebelum.API.ExecutionController do
       BlueprintRegistry.get_blueprint(workflow_name) != {:error, :not_found} ->
         case execute_blueprint(workflow_name, inputs) do
           {:ok, execution_id} ->
+            if org_id, do: put_execution_org(execution_id, org_id)
             conn
             |> put_status(:created)
             |> json(%{
