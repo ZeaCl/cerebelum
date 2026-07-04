@@ -2,6 +2,7 @@ defmodule Cerebelum.Application do
   @moduledoc false
 
   use Application
+  require Logger
 
   @impl true
   def start(_type, _args) do
@@ -50,6 +51,7 @@ defmodule Cerebelum.Application do
     # Conditionally add gRPC server if enabled
     children =
       if grpc_enabled?() do
+        Logger.info("gRPC: adding GRPC.Server.Supervisor to supervision tree on port #{grpc_port()}")
         base_children ++
           [
             {GRPC.Server.Supervisor,
@@ -59,6 +61,7 @@ defmodule Cerebelum.Application do
              adapter_opts: grpc_tls_opts()}
           ]
       else
+        Logger.info("gRPC: disabled by config")
         base_children
       end
 
