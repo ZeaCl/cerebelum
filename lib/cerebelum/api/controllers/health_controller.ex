@@ -27,8 +27,7 @@ defmodule Cerebelum.API.HealthController do
   end
 
   defp check_grpc do
-    # Check if gRPC server is running
-    case Process.whereis(Cerebelum.Infrastructure.WorkerServiceServer) do
+    case Process.whereis(GRPC.Server.Supervisor) do
       nil -> "stopped"
       _pid -> "running"
     end

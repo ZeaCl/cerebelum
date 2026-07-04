@@ -134,6 +134,7 @@ defmodule Cerebelum.Workflow.DSLTest do
 
       # Verificar que los patrones están presentes
       assert {:timeout, :retry} in patterns
+
       assert Enum.any?(patterns, fn
                {{:error, :network}, :failed} -> true
                _ -> false

@@ -2,6 +2,7 @@ defmodule Cerebelum.EventsTest do
   use ExUnit.Case, async: true
 
   alias Cerebelum.Events
+
   alias Cerebelum.Events.{
     ExecutionStartedEvent,
     StepExecutedEvent,
@@ -143,7 +144,8 @@ defmodule Cerebelum.EventsTest do
 
   describe "BranchTakenEvent" do
     test "creates event with branch path" do
-      event = BranchTakenEvent.new("exec-123", :calculate_risk, "score > 0.8", :skip_to, :high_risk, 1)
+      event =
+        BranchTakenEvent.new("exec-123", :calculate_risk, "score > 0.8", :skip_to, :high_risk, 1)
 
       assert event.execution_id == "exec-123"
       assert event.step_name == :calculate_risk
@@ -232,7 +234,8 @@ defmodule Cerebelum.EventsTest do
     end
 
     test "serializes to JSON" do
-      event = ExecutionFailedEvent.new("exec-123", :timeout, :timeout, "Timed out", :step1, %{}, 1)
+      event =
+        ExecutionFailedEvent.new("exec-123", :timeout, :timeout, "Timed out", :step1, %{}, 1)
 
       {:ok, json} = Jason.encode(event)
       assert is_binary(json)

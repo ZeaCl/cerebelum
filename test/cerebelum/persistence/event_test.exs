@@ -78,13 +78,14 @@ defmodule Cerebelum.Persistence.EventTest do
 
   describe "from_domain_event/1" do
     test "converts ExecutionStartedEvent to persistence event" do
-      domain_event = ExecutionStartedEvent.new(
-        "exec-123",
-        TestWorkflow,
-        %{input: "test"},
-        0,
-        correlation_id: "corr-123"
-      )
+      domain_event =
+        ExecutionStartedEvent.new(
+          "exec-123",
+          TestWorkflow,
+          %{input: "test"},
+          0,
+          correlation_id: "corr-123"
+        )
 
       event = Event.from_domain_event(domain_event)
 
@@ -96,15 +97,16 @@ defmodule Cerebelum.Persistence.EventTest do
     end
 
     test "converts StepExecutedEvent to persistence event" do
-      domain_event = StepExecutedEvent.new(
-        "exec-123",
-        :my_step,
-        0,
-        [],
-        {:ok, %{result: "success"}},
-        100,
-        1
-      )
+      domain_event =
+        StepExecutedEvent.new(
+          "exec-123",
+          :my_step,
+          0,
+          [],
+          {:ok, %{result: "success"}},
+          100,
+          1
+        )
 
       event = Event.from_domain_event(domain_event)
 
@@ -115,12 +117,13 @@ defmodule Cerebelum.Persistence.EventTest do
     end
 
     test "serializes nested maps" do
-      domain_event = ExecutionStartedEvent.new(
-        "exec-123",
-        TestWorkflow,
-        %{nested: %{deep: %{value: 42}}},
-        0
-      )
+      domain_event =
+        ExecutionStartedEvent.new(
+          "exec-123",
+          TestWorkflow,
+          %{nested: %{deep: %{value: 42}}},
+          0
+        )
 
       event = Event.from_domain_event(domain_event)
 
@@ -129,6 +132,7 @@ defmodule Cerebelum.Persistence.EventTest do
 
     test "serializes DateTime values" do
       now = DateTime.utc_now()
+
       domain_event = %ExecutionStartedEvent{
         event_id: "evt-123",
         execution_id: "exec-123",
@@ -148,15 +152,16 @@ defmodule Cerebelum.Persistence.EventTest do
     end
 
     test "serializes tuples as lists" do
-      domain_event = StepExecutedEvent.new(
-        "exec-123",
-        :my_step,
-        0,
-        [],
-        {:ok, {:nested, :tuple}},
-        100,
-        1
-      )
+      domain_event =
+        StepExecutedEvent.new(
+          "exec-123",
+          :my_step,
+          0,
+          [],
+          {:ok, {:nested, :tuple}},
+          100,
+          1
+        )
 
       event = Event.from_domain_event(domain_event)
 
@@ -166,6 +171,7 @@ defmodule Cerebelum.Persistence.EventTest do
 
     test "serializes exceptions" do
       error = %RuntimeError{message: "Something went wrong"}
+
       domain_event = %StepExecutedEvent{
         event_id: "evt-123",
         execution_id: "exec-123",

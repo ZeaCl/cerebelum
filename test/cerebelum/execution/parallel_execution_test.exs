@@ -143,7 +143,10 @@ defmodule Cerebelum.Execution.ParallelExecutionTest do
 
       # Should complete successfully
       assert status.state == :completed
-      assert status.results.finalize == {:ok, %{completed: true, counts: %{user_count: 2, order_count: 2, product_count: 2}}}
+
+      assert status.results.finalize ==
+               {:ok,
+                %{completed: true, counts: %{user_count: 2, order_count: 2, product_count: 2}}}
 
       # Check events were recorded
       {:ok, events} = EventStore.get_events(execution_id)

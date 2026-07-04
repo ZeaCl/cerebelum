@@ -19,6 +19,7 @@ defmodule Cerebelum.Infrastructure.TaskRouterTest do
   describe "queue_task/2" do
     test "queues a task and returns task_id" do
       execution_id = "exec_123"
+
       task = %{
         workflow_module: "TestWorkflow",
         step_name: "process",
@@ -52,9 +53,10 @@ defmodule Cerebelum.Infrastructure.TaskRouterTest do
       execution_id = "exec_123"
 
       # Worker starts polling (will block)
-      poll_task = Task.async(fn ->
-        TaskRouter.poll_for_task(worker_id, 5000)
-      end)
+      poll_task =
+        Task.async(fn ->
+          TaskRouter.poll_for_task(worker_id, 5000)
+        end)
 
       # Give worker time to enter long-poll state
       :timer.sleep(100)
@@ -73,10 +75,11 @@ defmodule Cerebelum.Infrastructure.TaskRouterTest do
       execution_id = "exec_123"
       worker_id = "worker_1"
 
-      {:ok, _task_id} = TaskRouter.queue_task(execution_id, %{
-        step_name: "process",
-        inputs: %{data: "test"}
-      })
+      {:ok, _task_id} =
+        TaskRouter.queue_task(execution_id, %{
+          step_name: "process",
+          inputs: %{data: "test"}
+        })
 
       assert {:ok, task} = TaskRouter.poll_for_task(worker_id, 1000)
       assert task.execution_id == execution_id
@@ -92,9 +95,10 @@ defmodule Cerebelum.Infrastructure.TaskRouterTest do
       start_time = System.monotonic_time(:millisecond)
 
       # Worker starts polling (will block)
-      poll_task = Task.async(fn ->
-        TaskRouter.poll_for_task(worker_id, 5000)
-      end)
+      poll_task =
+        Task.async(fn ->
+          TaskRouter.poll_for_task(worker_id, 5000)
+        end)
 
       # Wait 500ms, then queue task
       :timer.sleep(500)
@@ -137,12 +141,14 @@ defmodule Cerebelum.Infrastructure.TaskRouterTest do
       exec_3 = "exec_3"
 
       # Start 3 workers polling
-      workers = for i <- 1..3 do
-        worker_id = "worker_#{i}"
-        Task.async(fn ->
-          {worker_id, TaskRouter.poll_for_task(worker_id, 5000)}
-        end)
-      end
+      workers =
+        for i <- 1..3 do
+          worker_id = "worker_#{i}"
+
+          Task.async(fn ->
+            {worker_id, TaskRouter.poll_for_task(worker_id, 5000)}
+          end)
+        end
 
       # Give workers time to enter long-poll state
       :timer.sleep(100)
@@ -160,9 +166,10 @@ defmodule Cerebelum.Infrastructure.TaskRouterTest do
       assert length(results) == 3
 
       # Count how many workers got tasks
-      successful_polls = Enum.count(results, fn {_worker_id, result} ->
-        match?({:ok, _task}, result)
-      end)
+      successful_polls =
+        Enum.count(results, fn {_worker_id, result} ->
+          match?({:ok, _task}, result)
+        end)
 
       # All workers should get tasks (different executions, no sticky routing)
       assert successful_polls == 3, "Expected 3 workers to get tasks, got #{successful_polls}"
@@ -391,15 +398,17 @@ defmodule Cerebelum.Infrastructure.TaskRouterTest do
       start_time = System.monotonic_time(:millisecond)
 
       # Start workers polling
-      workers = for i <- 1..num_workers do
-        Task.async(fn ->
-          worker_id = "worker_#{i}"
-          poll_until_empty(worker_id, [])
-        end)
-      end
+      workers =
+        for i <- 1..num_workers do
+          Task.async(fn ->
+            worker_id = "worker_#{i}"
+            poll_until_empty(worker_id, [])
+          end)
+        end
 
       # Collect all tasks
-      all_tasks = workers
+      all_tasks =
+        workers
         |> Enum.map(&Task.await(&1, 5000))
         |> List.flatten()
 

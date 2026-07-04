@@ -2,6 +2,7 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServerTest do
   use ExUnit.Case, async: true
 
   alias Cerebelum.Infrastructure.WorkerServiceServer
+
   alias Cerebelum.Worker.{
     RegisterRequest,
     RegisterResponse,

@@ -55,12 +55,13 @@ defmodule CerebelumTest do
 
   describe "execute_workflow/3" do
     test "accepts options" do
-      {:ok, execution} = Cerebelum.execute_workflow(
-        CounterWorkflow,
-        %{},
-        correlation_id: "trace-123",
-        tags: ["test"]
-      )
+      {:ok, execution} =
+        Cerebelum.execute_workflow(
+          CounterWorkflow,
+          %{},
+          correlation_id: "trace-123",
+          tags: ["test"]
+        )
 
       {:ok, status} = Cerebelum.get_execution_status(execution.pid)
       assert status.context.correlation_id == "trace-123"
@@ -72,11 +73,12 @@ defmodule CerebelumTest do
     test "accepts custom execution_id" do
       custom_id = "my-custom-id-#{:rand.uniform(1000)}"
 
-      {:ok, execution} = Cerebelum.execute_workflow(
-        CounterWorkflow,
-        %{},
-        execution_id: custom_id
-      )
+      {:ok, execution} =
+        Cerebelum.execute_workflow(
+          CounterWorkflow,
+          %{},
+          execution_id: custom_id
+        )
 
       assert execution.id == custom_id
 

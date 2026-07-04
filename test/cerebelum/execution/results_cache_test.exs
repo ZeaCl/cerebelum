@@ -37,7 +37,9 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
 
     test "stores multiple results independently" do
       cache = ResultsCache.new()
-      cache = cache
+
+      cache =
+        cache
         |> ResultsCache.put(:step1, "a")
         |> ResultsCache.put(:step2, "b")
         |> ResultsCache.put(:step3, "c")
@@ -83,7 +85,9 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
   describe "take/2" do
     test "takes multiple results from cache" do
       cache = ResultsCache.new()
-      cache = cache
+
+      cache =
+        cache
         |> ResultsCache.put(:step1, "a")
         |> ResultsCache.put(:step2, "b")
         |> ResultsCache.put(:step3, "c")
@@ -121,7 +125,9 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
   describe "clear/1" do
     test "clears all results" do
       cache = ResultsCache.new()
-      cache = cache
+
+      cache =
+        cache
         |> ResultsCache.put(:step1, "a")
         |> ResultsCache.put(:step2, "b")
 
@@ -147,7 +153,9 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
 
     test "returns correct count" do
       cache = ResultsCache.new()
-      cache = cache
+
+      cache =
+        cache
         |> ResultsCache.put(:step1, "a")
         |> ResultsCache.put(:step2, "b")
         |> ResultsCache.put(:step3, "c")
@@ -178,7 +186,9 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
 
     test "converts cache to list of tuples" do
       cache = ResultsCache.new()
-      cache = cache
+
+      cache =
+        cache
         |> ResultsCache.put(:step1, "a")
         |> ResultsCache.put(:step2, "b")
 
@@ -202,7 +212,8 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
     test "multiple operations preserve immutability" do
       original = ResultsCache.new()
 
-      _modified = original
+      _modified =
+        original
         |> ResultsCache.put(:step1, "a")
         |> ResultsCache.put(:step2, "b")
         |> ResultsCache.clear()
@@ -215,7 +226,8 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
     test "can store typical workflow results" do
       cache = ResultsCache.new()
 
-      cache = cache
+      cache =
+        cache
         |> ResultsCache.put(:initialize, {:ok, 0})
         |> ResultsCache.put(:increment, {:ok, 1})
         |> ResultsCache.put(:double, {:ok, 2})
@@ -229,7 +241,8 @@ defmodule Cerebelum.Execution.ResultsCacheTest do
     test "can store error results" do
       cache = ResultsCache.new()
 
-      cache = cache
+      cache =
+        cache
         |> ResultsCache.put(:step1, {:ok, "success"})
         |> ResultsCache.put(:step2, {:error, :timeout})
 

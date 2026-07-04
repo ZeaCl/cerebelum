@@ -48,26 +48,25 @@ defmodule Cerebelum.Application do
     ]
 
     # Conditionally add gRPC server if enabled
-    children = if grpc_enabled?() do
-      # Silenced for clean CLI output
-      # IO.puts("🔧 Starting gRPC server on port #{grpc_port()}...")
-      base_children ++ [
-        # gRPC server for multi-language SDK support
-        # Register servers directly instead of using Endpoint
-        {GRPC.Server.Supervisor,
-         servers: [Cerebelum.Infrastructure.WorkerServiceServer],
-         port: grpc_port(),
-         start_server: true}
-      ]
-    else
-      # Silenced for clean CLI output
-      # IO.puts("⚠️  gRPC server disabled")
-      base_children
-    end
+    children =
+      if grpc_enabled?() do
+        base_children ++
+          [
+            {GRPC.Server.Supervisor,
+             servers: [Cerebelum.Infrastructure.WorkerServiceServer],
+             port: grpc_port(),
+             start_server: true,
+             adapter_opts: grpc_tls_opts()}
+          ]
+      else
+        base_children
+      end
 
     opts = [strategy: :one_for_one, name: Cerebelum.Supervisor]
     Supervisor.start_link(children, opts)
   end
+
+  # ── gRPC Configuration ──────────────────────────────
 
   defp grpc_enabled? do
     Application.get_env(:cerebelum, :enable_grpc_server, false)
@@ -75,6 +74,30 @@ defmodule Cerebelum.Application do
 
   defp grpc_port do
     Application.get_env(:cerebelum, :grpc_port, 50051)
+  end
+
+  defp grpc_tls_opts do
+    certs_dir = Application.get_env(:cerebelum, :grpc_certs_dir, "priv/certs")
+
+    cacert = Path.join(certs_dir, "ca.crt")
+    cert = Path.join(certs_dir, "server.crt")
+    key = Path.join(certs_dir, "server.key")
+
+    if File.exists?(cacert) and File.exists?(cert) and File.exists?(key) do
+      cred = GRPC.Credential.new(
+        ssl: [
+          certfile: cert,
+          keyfile: key,
+          cacertfile: cacert,
+          verify: :verify_peer,
+          fail_if_no_peer_cert: true,
+          versions: [:"tlsv1.2", :"tlsv1.3"]
+        ]
+      )
+      [cred: cred]
+    else
+      []
+    end
   end
 
   # http_enabled? and http_port are used when cerebelum starts its own

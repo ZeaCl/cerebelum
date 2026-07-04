@@ -34,9 +34,7 @@ defmodule Cerebelum.Execution.ApprovalTest do
     end
 
     def wait_for_approval(_ctx, {:ok, _start}) do
-      {:wait_for_approval,
-       [type: :manual],
-       %{message: "Please review this workflow"}}
+      {:wait_for_approval, [type: :manual], %{message: "Please review this workflow"}}
     end
 
     def finish(_ctx, {:ok, _start}, _approval) do
@@ -57,9 +55,7 @@ defmodule Cerebelum.Execution.ApprovalTest do
 
     def wait_with_timeout(_ctx, {:ok, _}) do
       # 1 second timeout
-      {:wait_for_approval,
-       [type: :manual, timeout_seconds: 1],
-       %{needs_review: true}}
+      {:wait_for_approval, [type: :manual, timeout_seconds: 1], %{needs_review: true}}
     end
 
     def finish(_ctx, {:ok, _}, _approval), do: {:ok, :done}
@@ -77,17 +73,13 @@ defmodule Cerebelum.Execution.ApprovalTest do
     def step1(_ctx), do: {:ok, 1}
 
     def approval1(_ctx, {:ok, _}) do
-      {:wait_for_approval,
-       [type: :review],
-       %{stage: "first_approval"}}
+      {:wait_for_approval, [type: :review], %{stage: "first_approval"}}
     end
 
     def step2(_ctx, {:ok, _}, _approval), do: {:ok, 2}
 
     def approval2(_ctx, {:ok, _}, _approval, {:ok, _}) do
-      {:wait_for_approval,
-       [type: :review],
-       %{stage: "second_approval"}}
+      {:wait_for_approval, [type: :review], %{stage: "second_approval"}}
     end
 
     def step3(_ctx, {:ok, _}, _approval1, {:ok, _}, _approval2), do: {:ok, 3}

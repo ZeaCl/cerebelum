@@ -41,11 +41,12 @@ defmodule Cerebelum.Execution.SupervisorTest do
     end
 
     test "starts execution with options" do
-      {:ok, pid} = Supervisor.start_execution(
-        CounterWorkflow,
-        %{},
-        context_opts: [correlation_id: "test-123"]
-      )
+      {:ok, pid} =
+        Supervisor.start_execution(
+          CounterWorkflow,
+          %{},
+          context_opts: [correlation_id: "test-123"]
+        )
 
       assert Process.alive?(pid)
 
@@ -53,10 +54,11 @@ defmodule Cerebelum.Execution.SupervisorTest do
     end
 
     test "can start multiple executions concurrently" do
-      pids = for _ <- 1..5 do
-        {:ok, pid} = Supervisor.start_execution(CounterWorkflow, %{})
-        pid
-      end
+      pids =
+        for _ <- 1..5 do
+          {:ok, pid} = Supervisor.start_execution(CounterWorkflow, %{})
+          pid
+        end
 
       assert length(pids) == 5
       assert Enum.all?(pids, &Process.alive?/1)
@@ -142,16 +144,18 @@ defmodule Cerebelum.Execution.SupervisorTest do
 
     test "returns error for non-existent PID" do
       fake_pid = spawn(fn -> :ok end)
-      :timer.sleep(10)  # Let it die
+      # Let it die
+      :timer.sleep(10)
 
       assert {:error, :not_found} = Supervisor.terminate_execution(fake_pid)
     end
 
     test "can terminate multiple executions" do
-      pids = for _ <- 1..3 do
-        {:ok, pid} = Supervisor.start_execution(CounterWorkflow, %{})
-        pid
-      end
+      pids =
+        for _ <- 1..3 do
+          {:ok, pid} = Supervisor.start_execution(CounterWorkflow, %{})
+          pid
+        end
 
       Enum.each(pids, fn pid ->
         assert :ok = Supervisor.terminate_execution(pid)

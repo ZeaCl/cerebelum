@@ -72,6 +72,7 @@ defmodule Cerebelum.Execution.StepExecutorTest do
         step1: {:ok, "result1"},
         step2: {:ok, "result2"}
       }
+
       args = StepExecutor.build_arguments(context, 2, timeline, results)
 
       assert length(args) == 3
@@ -100,14 +101,15 @@ defmodule Cerebelum.Execution.StepExecutorTest do
     end
 
     test "executes first step successfully", %{context: context, timeline: timeline} do
-      result = StepExecutor.execute_step(
-        TestWorkflow,
-        :step1,
-        0,
-        context,
-        timeline,
-        %{}
-      )
+      result =
+        StepExecutor.execute_step(
+          TestWorkflow,
+          :step1,
+          0,
+          context,
+          timeline,
+          %{}
+        )
 
       assert {:ok, {:ok, "result1_test123"}} = result
     end
@@ -115,14 +117,15 @@ defmodule Cerebelum.Execution.StepExecutorTest do
     test "executes second step with previous result", %{context: context, timeline: timeline} do
       results = %{step1: {:ok, "previous"}}
 
-      result = StepExecutor.execute_step(
-        TestWorkflow,
-        :step2,
-        1,
-        context,
-        timeline,
-        results
-      )
+      result =
+        StepExecutor.execute_step(
+          TestWorkflow,
+          :step2,
+          1,
+          context,
+          timeline,
+          results
+        )
 
       assert {:ok, {:ok, "result2_with_{:ok, \"previous\"}"}} = result
     end
@@ -133,14 +136,15 @@ defmodule Cerebelum.Execution.StepExecutorTest do
         step2: {:ok, "result2"}
       }
 
-      result = StepExecutor.execute_step(
-        TestWorkflow,
-        :step3,
-        2,
-        context,
-        timeline,
-        results
-      )
+      result =
+        StepExecutor.execute_step(
+          TestWorkflow,
+          :step3,
+          2,
+          context,
+          timeline,
+          results
+        )
 
       assert {:ok, {:ok, final_result}} = result
       assert is_binary(final_result)
@@ -153,14 +157,15 @@ defmodule Cerebelum.Execution.StepExecutorTest do
       context = Context.new(FailingWorkflow, %{})
       results = %{good_step: {:ok, "success"}}
 
-      result = StepExecutor.execute_step(
-        FailingWorkflow,
-        :failing_step,
-        1,
-        context,
-        timeline,
-        results
-      )
+      result =
+        StepExecutor.execute_step(
+          FailingWorkflow,
+          :failing_step,
+          1,
+          context,
+          timeline,
+          results
+        )
 
       assert {:error, %ErrorInfo{} = error} = result
       assert error.kind == :exception
@@ -173,14 +178,15 @@ defmodule Cerebelum.Execution.StepExecutorTest do
     test "passes context with inputs to step", %{timeline: timeline} do
       context = Context.new(TestWorkflow, %{id: "abc"})
 
-      result = StepExecutor.execute_step(
-        TestWorkflow,
-        :step1,
-        0,
-        context,
-        timeline,
-        %{}
-      )
+      result =
+        StepExecutor.execute_step(
+          TestWorkflow,
+          :step1,
+          0,
+          context,
+          timeline,
+          %{}
+        )
 
       assert {:ok, {:ok, "result1_abc"}} = result
     end
@@ -216,22 +222,33 @@ defmodule Cerebelum.Execution.StepExecutorTest do
       timeline = [:initialize, :increment, :double, :finalize]
 
       # Execute initialize
-      {:ok, result1} = StepExecutor.execute_step(CounterWorkflow, :initialize, 0, context, timeline, %{})
+      {:ok, result1} =
+        StepExecutor.execute_step(CounterWorkflow, :initialize, 0, context, timeline, %{})
+
       assert result1 == {:ok, 0}
 
       # Execute increment
       results = %{initialize: result1}
-      {:ok, result2} = StepExecutor.execute_step(CounterWorkflow, :increment, 1, context, timeline, results)
+
+      {:ok, result2} =
+        StepExecutor.execute_step(CounterWorkflow, :increment, 1, context, timeline, results)
+
       assert result2 == {:ok, 1}
 
       # Execute double
       results = %{initialize: result1, increment: result2}
-      {:ok, result3} = StepExecutor.execute_step(CounterWorkflow, :double, 2, context, timeline, results)
+
+      {:ok, result3} =
+        StepExecutor.execute_step(CounterWorkflow, :double, 2, context, timeline, results)
+
       assert result3 == {:ok, 2}
 
       # Execute finalize
       results = %{initialize: result1, increment: result2, double: result3}
-      {:ok, result4} = StepExecutor.execute_step(CounterWorkflow, :finalize, 3, context, timeline, results)
+
+      {:ok, result4} =
+        StepExecutor.execute_step(CounterWorkflow, :finalize, 3, context, timeline, results)
+
       assert result4 == {:ok, 2}
     end
   end

@@ -152,10 +152,11 @@ defmodule Cerebelum.Infrastructure.DLQTest do
     end
 
     test "combines multiple filters" do
-      assert {:ok, filtered_items} = DLQ.list_items(
-        status: "pending",
-        execution_id: "exec_even"
-      )
+      assert {:ok, filtered_items} =
+               DLQ.list_items(
+                 status: "pending",
+                 execution_id: "exec_even"
+               )
 
       # Even items that are pending: 2, 6 (4 is retried, 10 is resolved)
       assert length(filtered_items) == 2

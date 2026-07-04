@@ -14,10 +14,11 @@ defmodule Cerebelum.Execution.EngineTest do
 
   describe "start_link/1" do
     test "starts engine with workflow and inputs" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       assert Process.alive?(pid)
       Engine.stop(pid)
@@ -30,11 +31,12 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "accepts optional name" do
-      {:ok, pid} = Engine.start_link(
-        name: :test_engine,
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          name: :test_engine,
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       assert Process.whereis(:test_engine) == pid
       Engine.stop(pid)
@@ -43,10 +45,11 @@ defmodule Cerebelum.Execution.EngineTest do
 
   describe "execution states" do
     test "starts in initializing state and transitions through execution" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       # CounterWorkflow is fast, may complete quickly
       # Just verify it's in a valid state
@@ -58,10 +61,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "executes workflow and reaches completed state" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       # Wait for execution to complete (should be fast for CounterWorkflow)
       :timer.sleep(100)
@@ -73,17 +77,19 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "updates current_step during execution" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       # Check status at different points
-      statuses = for _ <- 1..5 do
-        status = Engine.get_status(pid)
-        :timer.sleep(5)
-        status
-      end
+      statuses =
+        for _ <- 1..5 do
+          status = Engine.get_status(pid)
+          :timer.sleep(5)
+          status
+        end
 
       # Should see progression through steps
       steps_seen = Enum.map(statuses, & &1.current_step) |> Enum.uniq()
@@ -95,10 +101,11 @@ defmodule Cerebelum.Execution.EngineTest do
 
   describe "results caching" do
     test "stores results for each step" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       # Wait for completion
       :timer.sleep(100)
@@ -116,10 +123,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "results contain expected values from CounterWorkflow" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -137,10 +145,11 @@ defmodule Cerebelum.Execution.EngineTest do
 
   describe "get_status/1" do
     test "returns comprehensive status information" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{test: "data"}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{test: "data"}
+        )
 
       :timer.sleep(100)
 
@@ -165,10 +174,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "timeline_progress shows correct format" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -182,10 +192,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "includes context with inputs" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: CounterWorkflow,
-        inputs: %{user_id: 123}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: CounterWorkflow,
+          inputs: %{user_id: 123}
+        )
 
       :timer.sleep(100)
 
@@ -217,10 +228,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "transitions to failed state on error" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: FailingWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: FailingWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -233,10 +245,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "captures error information" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: FailingWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: FailingWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -256,10 +269,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "stores results up to the failing step" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: FailingWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: FailingWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -312,10 +326,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "handles exit signals" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: ExitingWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: ExitingWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -331,10 +346,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "handles throw values" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: ThrowingWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: ThrowingWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -350,10 +366,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "error message is user-friendly" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: FailingWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: FailingWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -389,10 +406,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "passes inputs through context" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: InputWorkflow,
-        inputs: %{name: "Alice"}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: InputWorkflow,
+          inputs: %{name: "Alice"}
+        )
 
       :timer.sleep(100)
 
@@ -405,10 +423,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "uses default when no input provided" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: InputWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: InputWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -444,10 +463,11 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "passes previous results as arguments" do
-      {:ok, pid} = Engine.start_link(
-        workflow_module: ArgumentWorkflow,
-        inputs: %{}
-      )
+      {:ok, pid} =
+        Engine.start_link(
+          workflow_module: ArgumentWorkflow,
+          inputs: %{}
+        )
 
       :timer.sleep(100)
 
@@ -455,7 +475,9 @@ defmodule Cerebelum.Execution.EngineTest do
 
       assert status.results[:step1] == {:ok, :first}
       assert status.results[:step2] == {:ok, {:second, {:ok, :first}}}
-      assert status.results[:step3] == {:ok, {:third, {:ok, :first}, {:ok, {:second, {:ok, :first}}}}}
+
+      assert status.results[:step3] ==
+               {:ok, {:third, {:ok, :first}, {:ok, {:second, {:ok, :first}}}}}
 
       Engine.stop(pid)
     end
@@ -463,13 +485,16 @@ defmodule Cerebelum.Execution.EngineTest do
 
   describe "concurrent executions" do
     test "can run multiple workflows in parallel" do
-      pids = for i <- 1..5 do
-        {:ok, pid} = Engine.start_link(
-          workflow_module: CounterWorkflow,
-          inputs: %{run: i}
-        )
-        pid
-      end
+      pids =
+        for i <- 1..5 do
+          {:ok, pid} =
+            Engine.start_link(
+              workflow_module: CounterWorkflow,
+              inputs: %{run: i}
+            )
+
+          pid
+        end
 
       # Wait for all to complete
       :timer.sleep(200)
@@ -483,17 +508,21 @@ defmodule Cerebelum.Execution.EngineTest do
     end
 
     test "each execution has unique execution_id" do
-      pids = for _ <- 1..3 do
-        {:ok, pid} = Engine.start_link(
-          workflow_module: CounterWorkflow,
-          inputs: %{}
-        )
-        pid
-      end
+      pids =
+        for _ <- 1..3 do
+          {:ok, pid} =
+            Engine.start_link(
+              workflow_module: CounterWorkflow,
+              inputs: %{}
+            )
+
+          pid
+        end
 
       :timer.sleep(100)
 
-      execution_ids = pids
+      execution_ids =
+        pids
         |> Enum.map(&Engine.get_status/1)
         |> Enum.map(& &1.execution_id)
 

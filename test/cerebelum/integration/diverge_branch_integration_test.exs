@@ -185,7 +185,12 @@ defmodule Cerebelum.Integration.DivergeBranchIntegrationTest do
 
       workflow do
         timeline do
-          fetch_data() |> validate_data() |> fast_process() |> manual_review() |> standard_process() |> finalize()
+          fetch_data()
+          |> validate_data()
+          |> fast_process()
+          |> manual_review()
+          |> standard_process()
+          |> finalize()
         end
 
         # Retry on timeout

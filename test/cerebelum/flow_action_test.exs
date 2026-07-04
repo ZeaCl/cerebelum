@@ -98,10 +98,11 @@ defmodule Cerebelum.FlowActionTest do
     test "can pattern match on Continue" do
       action = FlowAction.continue()
 
-      result = case action do
-        %Continue{} -> :matched_continue
-        _ -> :no_match
-      end
+      result =
+        case action do
+          %Continue{} -> :matched_continue
+          _ -> :no_match
+        end
 
       assert result == :matched_continue
     end
@@ -109,10 +110,11 @@ defmodule Cerebelum.FlowActionTest do
     test "can pattern match on BackTo and extract step" do
       action = FlowAction.back_to(:validate)
 
-      result = case action do
-        %BackTo{step: step} -> {:back_to, step}
-        _ -> :no_match
-      end
+      result =
+        case action do
+          %BackTo{step: step} -> {:back_to, step}
+          _ -> :no_match
+        end
 
       assert result == {:back_to, :validate}
     end
@@ -120,10 +122,11 @@ defmodule Cerebelum.FlowActionTest do
     test "can pattern match on SkipTo and extract step" do
       action = FlowAction.skip_to(:finalize)
 
-      result = case action do
-        %SkipTo{step: step} -> {:skip_to, step}
-        _ -> :no_match
-      end
+      result =
+        case action do
+          %SkipTo{step: step} -> {:skip_to, step}
+          _ -> :no_match
+        end
 
       assert result == {:skip_to, :finalize}
     end
@@ -131,10 +134,11 @@ defmodule Cerebelum.FlowActionTest do
     test "can pattern match on Failed and extract reason" do
       action = FlowAction.failed(:timeout)
 
-      result = case action do
-        %Failed{reason: reason} -> {:failed, reason}
-        _ -> :no_match
-      end
+      result =
+        case action do
+          %Failed{reason: reason} -> {:failed, reason}
+          _ -> :no_match
+        end
 
       assert result == {:failed, :timeout}
     end

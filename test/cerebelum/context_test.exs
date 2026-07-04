@@ -106,7 +106,8 @@ defmodule Cerebelum.ContextTest do
       ctx = Context.new(CounterWorkflow, %{})
       original_updated = ctx.updated_at
 
-      :timer.sleep(1)  # Ensure time passes
+      # Ensure time passes
+      :timer.sleep(1)
       ctx = Context.update_step(ctx, :validate_order)
 
       assert DateTime.compare(ctx.updated_at, original_updated) == :gt
@@ -154,7 +155,8 @@ defmodule Cerebelum.ContextTest do
     test "resets retry_count to 0" do
       ctx = Context.new(CounterWorkflow, %{})
 
-      ctx = ctx
+      ctx =
+        ctx
         |> Context.increment_retry()
         |> Context.increment_retry()
         |> Context.increment_retry()
@@ -166,7 +168,8 @@ defmodule Cerebelum.ContextTest do
     end
 
     test "updates updated_at timestamp" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.increment_retry()
 
       original_updated = ctx.updated_at
@@ -215,7 +218,8 @@ defmodule Cerebelum.ContextTest do
     test "does not add duplicate tags" do
       ctx = Context.new(CounterWorkflow, %{})
 
-      ctx = ctx
+      ctx =
+        ctx
         |> Context.add_tag("test")
         |> Context.add_tag("test")
 
@@ -246,7 +250,9 @@ defmodule Cerebelum.ContextTest do
 
     test "does not add duplicate tags" do
       ctx = Context.new(CounterWorkflow, %{})
-      ctx = ctx
+
+      ctx =
+        ctx
         |> Context.add_tag("existing")
         |> Context.add_tags(["existing", "new"])
 
@@ -258,7 +264,8 @@ defmodule Cerebelum.ContextTest do
 
   describe "remove_tag/2" do
     test "removes tag from tags list" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.add_tags(["tag1", "tag2", "tag3"])
 
       ctx = Context.remove_tag(ctx, "tag2")
@@ -269,7 +276,8 @@ defmodule Cerebelum.ContextTest do
     end
 
     test "does nothing if tag doesn't exist" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.add_tag("tag1")
 
       ctx = Context.remove_tag(ctx, "nonexistent")
@@ -278,7 +286,8 @@ defmodule Cerebelum.ContextTest do
     end
 
     test "updates updated_at timestamp" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.add_tag("temp")
 
       original_updated = ctx.updated_at
@@ -300,7 +309,8 @@ defmodule Cerebelum.ContextTest do
     test "overwrites existing metadata key" do
       ctx = Context.new(CounterWorkflow, %{})
 
-      ctx = ctx
+      ctx =
+        ctx
         |> Context.put_metadata(:count, 1)
         |> Context.put_metadata(:count, 2)
 
@@ -326,7 +336,8 @@ defmodule Cerebelum.ContextTest do
 
   describe "get_metadata/3" do
     test "retrieves metadata value" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.put_metadata(:user_id, 123)
 
       assert Context.get_metadata(ctx, :user_id) == 123
@@ -340,7 +351,8 @@ defmodule Cerebelum.ContextTest do
     end
 
     test "works with string keys" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.put_metadata("string_key", "value")
 
       assert Context.get_metadata(ctx, "string_key") == "value"
@@ -349,7 +361,8 @@ defmodule Cerebelum.ContextTest do
 
   describe "merge_metadata/2" do
     test "merges metadata map into context" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.put_metadata(:existing, "old")
 
       ctx = Context.merge_metadata(ctx, %{user_id: 123, org_id: 456})
@@ -360,7 +373,8 @@ defmodule Cerebelum.ContextTest do
     end
 
     test "overwrites existing keys" do
-      ctx = Context.new(CounterWorkflow, %{})
+      ctx =
+        Context.new(CounterWorkflow, %{})
         |> Context.put_metadata(:key, "old")
 
       ctx = Context.merge_metadata(ctx, %{key: "new"})
@@ -456,6 +470,7 @@ defmodule Cerebelum.ContextTest do
 
     test "handles datetime objects" do
       now = DateTime.utc_now()
+
       map = %{
         execution_id: "test-789",
         workflow_module: CounterWorkflow,
@@ -486,7 +501,8 @@ defmodule Cerebelum.ContextTest do
     end
 
     test "round-trip conversion preserves data" do
-      original = Context.new(CounterWorkflow, %{user_id: 123})
+      original =
+        Context.new(CounterWorkflow, %{user_id: 123})
         |> Context.add_tag("test")
         |> Context.put_metadata(:key, "value")
 
@@ -505,7 +521,8 @@ defmodule Cerebelum.ContextTest do
     test "all operations return new context without mutating original" do
       original = Context.new(CounterWorkflow, %{})
 
-      _updated = original
+      _updated =
+        original
         |> Context.increment_retry()
         |> Context.increment_iteration()
         |> Context.update_step(:step1)

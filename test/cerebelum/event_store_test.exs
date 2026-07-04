@@ -5,6 +5,7 @@ defmodule Cerebelum.EventStoreTest do
   alias Cerebelum.EventStore
   alias Cerebelum.Persistence.Event
   alias Cerebelum.Repo
+
   alias Cerebelum.Events.{
     ExecutionStartedEvent,
     StepExecutedEvent,
@@ -28,12 +29,14 @@ defmodule Cerebelum.EventStoreTest do
   describe "append_sync/3" do
     test "persists event immediately" do
       execution_id = "exec-#{System.unique_integer([:positive])}"
-      event = ExecutionStartedEvent.new(
-        execution_id,
-        TestWorkflow,
-        %{input: "test"},
-        0
-      )
+
+      event =
+        ExecutionStartedEvent.new(
+          execution_id,
+          TestWorkflow,
+          %{input: "test"},
+          0
+        )
 
       assert {:ok, stored} = EventStore.append_sync(execution_id, event, 0)
       assert stored.execution_id == execution_id
@@ -46,6 +49,7 @@ defmodule Cerebelum.EventStoreTest do
 
     test "validates required fields" do
       execution_id = "exec-#{System.unique_integer([:positive])}"
+
       event = %ExecutionStartedEvent{
         event_id: "evt-123",
         execution_id: execution_id,
@@ -97,13 +101,17 @@ defmodule Cerebelum.EventStoreTest do
       assert :ok = EventStore.append(execution_id, event3, 2)
 
       # Events not immediately in database
-      assert Repo.all(from e in Event, where: e.execution_id == ^execution_id) == []
+      assert Repo.all(from(e in Event, where: e.execution_id == ^execution_id)) == []
 
       # Flush batch
       EventStore.flush()
 
       # Now events are persisted
-      events = Repo.all(from e in Event, where: e.execution_id == ^execution_id, order_by: [asc: e.version])
+      events =
+        Repo.all(
+          from(e in Event, where: e.execution_id == ^execution_id, order_by: [asc: e.version])
+        )
+
       assert length(events) == 3
       assert Enum.map(events, & &1.version) == [0, 1, 2]
     end
@@ -133,7 +141,7 @@ defmodule Cerebelum.EventStoreTest do
       # Wait for auto-flush to complete
       Process.sleep(100)
 
-      events = Repo.all(from e in Event, where: e.execution_id == ^execution_id)
+      events = Repo.all(from(e in Event, where: e.execution_id == ^execution_id))
       assert length(events) == 1000
     end
   end
@@ -155,11 +163,12 @@ defmodule Cerebelum.EventStoreTest do
       assert {:ok, events} = EventStore.get_events(execution_id)
       assert length(events) == 3
       assert Enum.map(events, & &1.version) == [0, 1, 2]
+
       assert Enum.map(events, & &1.event_type) == [
-        "ExecutionStartedEvent",
-        "StepExecutedEvent",
-        "StepExecutedEvent"
-      ]
+               "ExecutionStartedEvent",
+               "StepExecutedEvent",
+               "StepExecutedEvent"
+             ]
     end
 
     test "returns empty list for non-existent execution" do
@@ -258,19 +267,20 @@ defmodule Cerebelum.EventStoreTest do
     test "serializes and stores complex event data" do
       execution_id = "exec-#{System.unique_integer([:positive])}"
 
-      event = ExecutionStartedEvent.new(
-        execution_id,
-        MyComplexWorkflow,
-        %{
-          string: "test",
-          number: 42,
-          list: [1, 2, 3],
-          map: %{nested: "value"}
-        },
-        0,
-        correlation_id: "corr-123",
-        tags: [:production, :important]
-      )
+      event =
+        ExecutionStartedEvent.new(
+          execution_id,
+          MyComplexWorkflow,
+          %{
+            string: "test",
+            number: 42,
+            list: [1, 2, 3],
+            map: %{nested: "value"}
+          },
+          0,
+          correlation_id: "corr-123",
+          tags: [:production, :important]
+        )
 
       assert {:ok, stored} = EventStore.append_sync(execution_id, event, 0)
 
@@ -318,21 +328,22 @@ defmodule Cerebelum.EventStoreTest do
   describe "concurrency" do
     test "handles concurrent appends to different executions" do
       # Spawn multiple processes appending events concurrently
-      tasks = for i <- 1..10 do
-        Task.async(fn ->
-          execution_id = "exec-concurrent-#{i}"
-          event = ExecutionStartedEvent.new(execution_id, TestWorkflow, %{}, 0)
-          EventStore.append_sync(execution_id, event, 0)
-        end)
-      end
+      tasks =
+        for i <- 1..10 do
+          Task.async(fn ->
+            execution_id = "exec-concurrent-#{i}"
+            event = ExecutionStartedEvent.new(execution_id, TestWorkflow, %{}, 0)
+            EventStore.append_sync(execution_id, event, 0)
+          end)
+        end
 
       results = Task.await_many(tasks)
 
       # All should succeed
       assert Enum.all?(results, fn
-        {:ok, _} -> true
-        _ -> false
-      end)
+               {:ok, _} -> true
+               _ -> false
+             end)
     end
 
     test "detects version conflicts in same execution" do
@@ -343,20 +354,22 @@ defmodule Cerebelum.EventStoreTest do
       assert {:ok, _} = EventStore.append_sync(execution_id, event1, 0)
 
       # Concurrent attempts with same version should fail
-      tasks = for _ <- 1..5 do
-        Task.async(fn ->
-          event = StepExecutedEvent.new(execution_id, :step, 1, [], "result", 0, 1)
-          EventStore.append_sync(execution_id, event, 1)
-        end)
-      end
+      tasks =
+        for _ <- 1..5 do
+          Task.async(fn ->
+            event = StepExecutedEvent.new(execution_id, :step, 1, [], "result", 0, 1)
+            EventStore.append_sync(execution_id, event, 1)
+          end)
+        end
 
       results = Task.await_many(tasks)
 
       # Only one should succeed
-      successes = Enum.count(results, fn
-        {:ok, _} -> true
-        _ -> false
-      end)
+      successes =
+        Enum.count(results, fn
+          {:ok, _} -> true
+          _ -> false
+        end)
 
       assert successes == 1
     end
@@ -370,7 +383,7 @@ defmodule Cerebelum.EventStoreTest do
       EventStore.append(execution_id, event, 0)
 
       # Not in database yet
-      assert Repo.all(from e in Event, where: e.execution_id == ^execution_id) == []
+      assert Repo.all(from(e in Event, where: e.execution_id == ^execution_id)) == []
 
       # Flush
       EventStore.flush()

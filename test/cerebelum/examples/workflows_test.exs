@@ -234,13 +234,14 @@ defmodule Cerebelum.Examples.WorkflowsTest do
       context = %{inputs: %{threshold: 50.00}}
 
       matches =
-        {:ok, %{
-          matched: [],
-          unmatched_bank: [%{amount: 100}],
-          unmatched_ledger: [%{amount: 80}],
-          matched_count: 0,
-          unmatched_count: 2
-        }}
+        {:ok,
+         %{
+           matched: [],
+           unmatched_bank: [%{amount: 100}],
+           unmatched_ledger: [%{amount: 80}],
+           matched_count: 0,
+           unmatched_count: 2
+         }}
 
       result =
         BankReconciliationWorkflow.calculate_differences(

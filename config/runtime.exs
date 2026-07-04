@@ -23,10 +23,12 @@ if config_env() == :prod do
   # gRPC server configuration
   enable_grpc = System.get_env("ENABLE_GRPC_SERVER", "true") == "true"
   grpc_port = String.to_integer(System.get_env("GRPC_PORT") || "9090")
+  grpc_certs_dir = System.get_env("GRPC_CERTS_DIR") || "/app/priv/certs"
 
   config :cerebelum,
     enable_grpc_server: enable_grpc,
-    grpc_port: grpc_port
+    grpc_port: grpc_port,
+    grpc_certs_dir: grpc_certs_dir
 
   # Secret key base for signing/encryption (required if you add Phoenix later)
   secret_key_base =

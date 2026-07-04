@@ -78,7 +78,8 @@ defmodule Cerebelum.Workflow.IntrospectionTest do
     test "returns error for non-existent function" do
       case Introspection.get_abstract_code(TestWorkflow) do
         {:ok, abstract_code} ->
-          assert {:error, :not_found} = Introspection.find_function(abstract_code, :nonexistent, 1)
+          assert {:error, :not_found} =
+                   Introspection.find_function(abstract_code, :nonexistent, 1)
 
         {:error, _reason} ->
           :ok

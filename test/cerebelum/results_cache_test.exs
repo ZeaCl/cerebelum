@@ -24,7 +24,8 @@ defmodule Cerebelum.ResultsCacheTest do
     test "can store multiple steps" do
       cache = ResultsCache.new()
 
-      cache = cache
+      cache =
+        cache
         |> ResultsCache.put(:start, %{order_id: "123"})
         |> ResultsCache.put(:validate, %{valid: true})
 
@@ -35,7 +36,8 @@ defmodule Cerebelum.ResultsCacheTest do
     test "overwrites existing step result" do
       cache = ResultsCache.new()
 
-      cache = cache
+      cache =
+        cache
         |> ResultsCache.put(:start, %{value: 1})
         |> ResultsCache.put(:start, %{value: 2})
 
@@ -54,7 +56,8 @@ defmodule Cerebelum.ResultsCacheTest do
 
   describe "get/2" do
     test "returns {:ok, result} if step exists" do
-      cache = ResultsCache.new()
+      cache =
+        ResultsCache.new()
         |> ResultsCache.put(:start, %{value: 42})
 
       assert ResultsCache.get(cache, :start) == {:ok, %{value: 42}}
@@ -69,7 +72,8 @@ defmodule Cerebelum.ResultsCacheTest do
 
   describe "get!/2" do
     test "returns result if step exists" do
-      cache = ResultsCache.new()
+      cache =
+        ResultsCache.new()
         |> ResultsCache.put(:start, %{value: 42})
 
       assert ResultsCache.get!(cache, :start) == %{value: 42}
@@ -86,7 +90,8 @@ defmodule Cerebelum.ResultsCacheTest do
 
   describe "has_step?/2" do
     test "returns true if step exists" do
-      cache = ResultsCache.new()
+      cache =
+        ResultsCache.new()
         |> ResultsCache.put(:start, %{})
 
       assert ResultsCache.has_step?(cache, :start)
@@ -103,7 +108,8 @@ defmodule Cerebelum.ResultsCacheTest do
     test "returns cache with only steps up to specified step" do
       steps_order = [:start, :validate, :charge, :done]
 
-      cache = ResultsCache.new()
+      cache =
+        ResultsCache.new()
         |> ResultsCache.put(:start, %{value: 1})
         |> ResultsCache.put(:validate, %{value: 2})
         |> ResultsCache.put(:charge, %{value: 3})
@@ -112,15 +118,16 @@ defmodule Cerebelum.ResultsCacheTest do
       result = ResultsCache.get_up_to(cache, :validate, steps_order)
 
       assert result == %{
-        start: %{value: 1},
-        validate: %{value: 2}
-      }
+               start: %{value: 1},
+               validate: %{value: 2}
+             }
     end
 
     test "returns empty map if step is first" do
       steps_order = [:start, :validate, :charge]
 
-      cache = ResultsCache.new()
+      cache =
+        ResultsCache.new()
         |> ResultsCache.put(:start, %{value: 1})
         |> ResultsCache.put(:validate, %{value: 2})
 
@@ -133,7 +140,8 @@ defmodule Cerebelum.ResultsCacheTest do
     test "handles step not in order list" do
       steps_order = [:start, :validate]
 
-      cache = ResultsCache.new()
+      cache =
+        ResultsCache.new()
         |> ResultsCache.put(:start, %{value: 1})
 
       # Step not in order
@@ -145,7 +153,8 @@ defmodule Cerebelum.ResultsCacheTest do
 
   describe "executed_steps/1" do
     test "returns list of executed step names" do
-      cache = ResultsCache.new()
+      cache =
+        ResultsCache.new()
         |> ResultsCache.put(:start, %{})
         |> ResultsCache.put(:validate, %{})
         |> ResultsCache.put(:charge, %{})

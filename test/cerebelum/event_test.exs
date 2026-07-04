@@ -2,6 +2,7 @@ defmodule Cerebelum.EventTest do
   use ExUnit.Case, async: true
 
   alias Cerebelum.Event
+
   alias Cerebelum.Event.{
     ExecutionStarted,
     StepStarted,
@@ -173,12 +174,14 @@ defmodule Cerebelum.EventTest do
     test "can match on ExecutionStarted" do
       event = Event.execution_started("id", MyMod, %{data: 1})
 
-      result = case event do
-        %ExecutionStarted{workflow_module: mod, inputs: inputs} ->
-          {mod, inputs}
-        _ ->
-          :no_match
-      end
+      result =
+        case event do
+          %ExecutionStarted{workflow_module: mod, inputs: inputs} ->
+            {mod, inputs}
+
+          _ ->
+            :no_match
+        end
 
       assert result == {MyMod, %{data: 1}}
     end
@@ -186,12 +189,14 @@ defmodule Cerebelum.EventTest do
     test "can match on StepCompleted and extract result" do
       event = Event.step_completed("id", :validate, %{valid: true})
 
-      result = case event do
-        %StepCompleted{step_name: name, result: res} ->
-          {name, res}
-        _ ->
-          :no_match
-      end
+      result =
+        case event do
+          %StepCompleted{step_name: name, result: res} ->
+            {name, res}
+
+          _ ->
+            :no_match
+        end
 
       assert result == {:validate, %{valid: true}}
     end
@@ -200,17 +205,19 @@ defmodule Cerebelum.EventTest do
       completed = Event.step_completed("id", :step, %{})
       failed = Event.step_failed("id", :step, :error)
 
-      completed_result = case completed do
-        %StepCompleted{} -> :success
-        %StepFailed{} -> :failure
-        _ -> :unknown
-      end
+      completed_result =
+        case completed do
+          %StepCompleted{} -> :success
+          %StepFailed{} -> :failure
+          _ -> :unknown
+        end
 
-      failed_result = case failed do
-        %StepCompleted{} -> :success
-        %StepFailed{} -> :failure
-        _ -> :unknown
-      end
+      failed_result =
+        case failed do
+          %StepCompleted{} -> :success
+          %StepFailed{} -> :failure
+          _ -> :unknown
+        end
 
       assert completed_result == :success
       assert failed_result == :failure

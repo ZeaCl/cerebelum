@@ -118,7 +118,8 @@ defmodule Cerebelum.Workflow.ValidatorTest do
 
       # Simular metadata donde step2 tiene una posición diferente (esperaría arity 3)
       metadata = %{
-        timeline: [:step1, :step2, :step3, :step2],  # step2 aparece dos veces
+        # step2 aparece dos veces
+        timeline: [:step1, :step2, :step3, :step2],
         diverges: %{},
         branches: %{}
       }
@@ -196,7 +197,8 @@ defmodule Cerebelum.Workflow.ValidatorTest do
       metadata = %{timeline: [:step1, :missing], diverges: %{}, branches: %{}}
       env = __ENV__
 
-      {:error, message} = Validator.validate_timeline_functions_exist(ValidWorkflow, metadata, env)
+      {:error, message} =
+        Validator.validate_timeline_functions_exist(ValidWorkflow, metadata, env)
 
       assert message =~ "missing"
       assert message =~ "Timeline:"

@@ -7,6 +7,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryTest do
     # Registry is started by Application, so we just need to clean it up
     # Get all workers and unregister them
     workers = WorkerRegistry.get_workers(:all)
+
     Enum.each(workers, fn worker ->
       WorkerRegistry.unregister_worker(worker.worker_id)
     end)
@@ -57,7 +58,8 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryTest do
       initial_heartbeat = worker1.last_heartbeat
 
       # Wait a bit and send heartbeat
-      :timer.sleep(1100)  # Wait > 1 second for timestamp to change
+      # Wait > 1 second for timestamp to change
+      :timer.sleep(1100)
       WorkerRegistry.heartbeat("worker-1", :idle)
 
       # Heartbeat is async (cast), so wait for it to process
@@ -72,12 +74,14 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryTest do
       {:ok, _} = WorkerRegistry.register_worker("worker-1", %{language: "kotlin"})
 
       WorkerRegistry.heartbeat("worker-1", :busy)
-      :timer.sleep(50)  # Wait for async cast
+      # Wait for async cast
+      :timer.sleep(50)
       {:ok, worker} = WorkerRegistry.get_worker("worker-1")
       assert worker.status == :busy
 
       WorkerRegistry.heartbeat("worker-1", :draining)
-      :timer.sleep(50)  # Wait for async cast
+      # Wait for async cast
+      :timer.sleep(50)
       {:ok, worker} = WorkerRegistry.get_worker("worker-1")
       assert worker.status == :draining
     end
@@ -156,7 +160,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryTest do
     test "returns only idle workers" do
       {:ok, _} = WorkerRegistry.register_worker("worker-1", %{language: "kotlin"})
       {:ok, _} = WorkerRegistry.register_worker("worker-2", %{language: "typescript"})
-      
+
       WorkerRegistry.heartbeat("worker-1", :idle)
       WorkerRegistry.heartbeat("worker-2", :busy)
 
@@ -199,16 +203,17 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryTest do
     test "automatically deregisters workers after timeout" do
       # Register a worker
       {:ok, worker} = WorkerRegistry.register_worker("worker-1", %{language: "kotlin"})
-      
+
       # Manually set last_heartbeat to be old (simulate dead worker)
       # We need to access the ETS table directly for this test
-      old_time = worker.last_heartbeat - 31  # 31 seconds ago (> 30s threshold)
+      # 31 seconds ago (> 30s threshold)
+      old_time = worker.last_heartbeat - 31
       dead_worker = %{worker | last_heartbeat: old_time}
       :ets.insert(:worker_registry, {"worker-1", dead_worker})
 
       # Trigger health check manually by sending message to registry
       send(Process.whereis(WorkerRegistry), :health_check)
-      
+
       # Give it time to process
       :timer.sleep(100)
 
@@ -218,7 +223,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryTest do
 
     test "does not deregister workers with recent heartbeats" do
       {:ok, _} = WorkerRegistry.register_worker("worker-1", %{language: "kotlin"})
-      
+
       # Send recent heartbeat
       WorkerRegistry.heartbeat("worker-1", :idle)
 

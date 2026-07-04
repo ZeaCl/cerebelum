@@ -54,7 +54,10 @@ defmodule Cerebelum.Execution.SleepTest do
     def step1(_ctx), do: {:ok, 1}
     def sleep1(_ctx, {:ok, _}), do: {:sleep, [milliseconds: 50], {:ok, :slept1}}
     def step2(_ctx, {:ok, _}, {:ok, _}), do: {:ok, 2}
-    def sleep2(_ctx, {:ok, _}, {:ok, _}, {:ok, _}), do: {:sleep, [milliseconds: 50], {:ok, :slept2}}
+
+    def sleep2(_ctx, {:ok, _}, {:ok, _}, {:ok, _}),
+      do: {:sleep, [milliseconds: 50], {:ok, :slept2}}
+
     # step3 receives: ctx, step1, sleep1, step2, sleep2 (5 args)
     def step3(_ctx, {:ok, _}, {:ok, _}, {:ok, _}, {:ok, _}), do: {:ok, 3}
   end
@@ -148,13 +151,17 @@ defmodule Cerebelum.Execution.SleepTest do
       # Check events
       {:ok, events} = EventStore.get_events(execution_id)
 
-      sleep_events = Enum.filter(events, fn e ->
-        e.event_type in ["SleepStartedEvent", "SleepCompletedEvent"]
-      end)
+      sleep_events =
+        Enum.filter(events, fn e ->
+          e.event_type in ["SleepStartedEvent", "SleepCompletedEvent"]
+        end)
 
       # Should have 2 sleep started and 2 sleep completed
-      sleep_started_events = Enum.filter(sleep_events, fn e -> e.event_type == "SleepStartedEvent" end)
-      sleep_completed_events = Enum.filter(sleep_events, fn e -> e.event_type == "SleepCompletedEvent" end)
+      sleep_started_events =
+        Enum.filter(sleep_events, fn e -> e.event_type == "SleepStartedEvent" end)
+
+      sleep_completed_events =
+        Enum.filter(sleep_events, fn e -> e.event_type == "SleepCompletedEvent" end)
 
       assert length(sleep_started_events) == 2
       assert length(sleep_completed_events) == 2

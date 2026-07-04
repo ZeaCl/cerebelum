@@ -23,7 +23,8 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprintTest do
       assert {:ok, result} = ValidateBlueprint.execute(blueprint)
       assert result.errors == []
       assert is_binary(result.workflow_hash)
-      assert String.length(result.workflow_hash) == 64  # SHA256 hex
+      # SHA256 hex
+      assert String.length(result.workflow_hash) == 64
     end
 
     test "accepts valid blueprint with diverge rules" do
@@ -206,7 +207,8 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprintTest do
         language: "kotlin",
         definition: %{
           timeline: [
-            %{depends_on: []},  # Missing name
+            # Missing name
+            %{depends_on: []},
             %{name: "step2", depends_on: []}
           ],
           diverge_rules: [],
@@ -236,7 +238,11 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprintTest do
       }
 
       assert {:error, result} = ValidateBlueprint.execute(blueprint)
-      assert Enum.any?(result.errors, &String.contains?(&1, "depends on undefined step 'nonexistent'"))
+
+      assert Enum.any?(
+               result.errors,
+               &String.contains?(&1, "depends on undefined step 'nonexistent'")
+             )
     end
 
     test "rejects undefined step in diverge rule" do
@@ -259,7 +265,11 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprintTest do
       }
 
       assert {:error, result} = ValidateBlueprint.execute(blueprint)
-      assert Enum.any?(result.errors, &String.contains?(&1, "Diverge rule references undefined step 'nonexistent'"))
+
+      assert Enum.any?(
+               result.errors,
+               &String.contains?(&1, "Diverge rule references undefined step 'nonexistent'")
+             )
     end
 
     test "rejects undefined target in diverge pattern" do
@@ -282,7 +292,11 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprintTest do
       }
 
       assert {:error, result} = ValidateBlueprint.execute(blueprint)
-      assert Enum.any?(result.errors, &String.contains?(&1, "Diverge pattern references undefined step 'nonexistent'"))
+
+      assert Enum.any?(
+               result.errors,
+               &String.contains?(&1, "Diverge pattern references undefined step 'nonexistent'")
+             )
     end
 
     test "rejects undefined step in branch rule" do
@@ -307,7 +321,11 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprintTest do
       }
 
       assert {:error, result} = ValidateBlueprint.execute(blueprint)
-      assert Enum.any?(result.errors, &String.contains?(&1, "Branch rule references undefined step 'nonexistent'"))
+
+      assert Enum.any?(
+               result.errors,
+               &String.contains?(&1, "Branch rule references undefined step 'nonexistent'")
+             )
     end
 
     test "rejects undefined target in branch action" do
@@ -332,7 +350,11 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprintTest do
       }
 
       assert {:error, result} = ValidateBlueprint.execute(blueprint)
-      assert Enum.any?(result.errors, &String.contains?(&1, "Branch action references undefined step 'nonexistent'"))
+
+      assert Enum.any?(
+               result.errors,
+               &String.contains?(&1, "Branch action references undefined step 'nonexistent'")
+             )
     end
   end
 
