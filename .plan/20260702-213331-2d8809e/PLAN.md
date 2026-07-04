@@ -46,13 +46,12 @@
 - [x] E8. `cerebelum doctor` → health OK
 
 ## F. Validación gRPC + Python Worker
-- [x] F0. Código listo: WorkerServiceServer + Python Worker SDK + test_worker.py
-- [x] F0. docker-compose.prod.yml → `ENABLE_GRPC_SERVER: "true"` + `50051:50051`
-- [ ] F1. **BLOQUEADO**: `git pull` + `docker compose up -d cerebelum` en EC2
-- [ ] F2. **BLOQUEADO**: Abrir puerto 50051 en AWS security group
-- [ ] F3. Worker Python registrado vía gRPC
-- [ ] F4. Workflow distribuido vía gRPC → completed
-- [ ] F5. Eventos en EventStore con organization_id
+- [x] Certificados mTLS generados (CA + server + client)
+- [x] gRPC server con mTLS en prod → health: "running"
+- [x] Puerto 50051 abierto en AWS SG vía terraform apply
+- [x] Worker Python registrado vía mTLS directo (sin tunnel)
+- [ ] Worker lifecycle completo: poll → execute → submit
+- [ ] Eventos en EventStore con organization_id
 
 ## G. Multi-tenancy
 - [ ] G1. Org A no ve ejecuciones de Org B

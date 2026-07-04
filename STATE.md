@@ -29,11 +29,13 @@ Validar que un Python Worker se conecta al engine vía gRPC con mTLS, registra w
 
 ### Progreso
 - [x] F0. Certs mTLS generados (`priv/certs/`)
-- [ ] F1. Configurar gRPC server con TLS en Elixir
-- [ ] F2. Montar certs en `docker-compose.prod.yml`
-- [ ] F3. Abrir puerto 50051 en security group (`main.tf`)
-- [ ] F4. Worker Python con TLS (`ssl_channel_credentials`)
-- [ ] F5. Validar — health check gRPC → running, worker registrado, eventos con org_id
+- [x] F1. gRPC server con mTLS corriendo en prod
+- [x] F2. Health check → `"grpc": "running"`
+- [x] F3. Certs montados en container (`/app/certs`)
+- [x] F4. Worker Python conecta vía mTLS (SSH tunnel)
+- [x] F5. Worker registrado exitosamente (`RegisterResponse.success=true`)
+- [ ] F6. Abrir puerto 50051 en AWS SG (terraform apply — sin creds)
+- [ ] F7. Test completo: poll → execute → submit → eventos con org_id
 
 ---
 
