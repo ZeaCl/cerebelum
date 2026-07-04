@@ -2,7 +2,7 @@
 
 - **Hash**: `20260702-213331-2d8809e`
 - **Path**: `ZeaCl/cerebelum/.plan/20260702-213331-2d8809e/`
-- **Engine**: ZeaCl/cerebelum @ b81e997
+- **Engine**: ZeaCl/cerebelum @ 1e11e6b
 - **Board**: https://github.com/orgs/ZeaCl/projects/6
 - **Objetivo**: Desplegar cerebelum en ZEA Platform producción y validar demo-cloud contra él
 
@@ -39,16 +39,20 @@
 - [x] E1. Clonar: `git clone ZeaCl/cerebelum-demo-cloud`
 - [x] E2. `pip install cerebelum-sdk`
 - [x] E3. `python template/workflow.py` → `Status: completed` (local)
-- [ ] E4. `npx @zea.cl/cerebelum-cli login` → obtiene JWT
-- [ ] E5. `cerebelum deploy template/workflow.py` → blueprint subido
-- [ ] E6. `cerebelum run MyWorkflow --input '{"name":"ZEA"}'` → completed
-- [ ] E7. `cerebelum logs <id> --follow` → streaming eventos
+- [x] E4. `cerebelum login` → OAuth2 PKCE vía Thalamus → JWT guardado
+- [x] E5. `cerebelum deploy workflow.py` → blueprint subido (endpoint creado)
+- [x] E6. `cerebelum run my_workflow --inputs '{"name":"ZEA"}'` → exec_xxx completed
+- [x] E7. `cerebelum logs <id>` → streaming eventos (ExecutionStarted → StepStarted → StepCompleted → ExecutionCompleted)
 - [x] E8. `cerebelum doctor` → health OK
 
 ## F. Validación gRPC + Python Worker
-- [ ] F1. Worker Python registrado
-- [ ] F2. Workflow distribuido via gRPC → 5/5 completed
-- [ ] F3. Eventos en EventStore con organization_id
+- [x] F0. Código listo: WorkerServiceServer + Python Worker SDK + test_worker.py
+- [x] F0. docker-compose.prod.yml → `ENABLE_GRPC_SERVER: "true"` + `50051:50051`
+- [ ] F1. **BLOQUEADO**: `git pull` + `docker compose up -d cerebelum` en EC2
+- [ ] F2. **BLOQUEADO**: Abrir puerto 50051 en AWS security group
+- [ ] F3. Worker Python registrado vía gRPC
+- [ ] F4. Workflow distribuido vía gRPC → completed
+- [ ] F5. Eventos en EventStore con organization_id
 
 ## G. Multi-tenancy
 - [ ] G1. Org A no ve ejecuciones de Org B
