@@ -27,9 +27,14 @@ defmodule Cerebelum.API.HealthController do
   end
 
   defp check_grpc do
-    case Process.whereis(GRPC.Server.Supervisor) do
-      nil -> "stopped"
-      _pid -> "running"
+    port = Application.get_env(:cerebelum, :grpc_port, 50051)
+    # Try connecting to the gRPC port locally to verify it's listening
+    case :gen_tcp.connect('localhost', port, [], 100) do
+      {:ok, sock} ->
+        :gen_tcp.close(sock)
+        "running"
+      {:error, _} ->
+        "stopped"
     end
   end
 end
