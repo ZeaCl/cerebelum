@@ -69,10 +69,16 @@ defmodule Cerebelum.API.DevCertController do
     ca_crt_path = Path.join(@certs_dir, "ca.crt")
     ca_key_path = Path.join(@certs_dir, "ca.key")
 
+    # Copy CA files to tmp (CA dir is read-only volume)
+    tmp_ca_crt = Path.join(@tmp_dir, "ca.crt")
+    tmp_ca_key = Path.join(@tmp_dir, "ca.key")
+    File.cp!(Path.join(@certs_dir, "ca.crt"), tmp_ca_crt)
+    File.cp!(Path.join(@certs_dir, "ca.key"), tmp_ca_key)
+
     # If cert already exists for this user, return it (idempotent)
     if File.exists?(client_crt_path) and File.exists?(client_key_path) do
       Logger.info("Dev cert already exists for user #{user_id}, reusing")
-      {:ok, File.read!(ca_crt_path), File.read!(client_crt_path), File.read!(client_key_path)}
+      {:ok, File.read!(tmp_ca_crt), File.read!(client_crt_path), File.read!(client_key_path)}
     else
       # Generate new client key
       case System.cmd("openssl", ["genrsa", "-out", client_key_path, "4096"], stderr_to_stdout: true) do
@@ -84,17 +90,17 @@ defmodule Cerebelum.API.DevCertController do
             "-subj", subject
           ], stderr_to_stdout: true) do
             {_, 0} ->
-              # Sign with CA
+              # Sign with CA (from /tmp to allow .srl write)
               case System.cmd("openssl", [
                 "x509", "-req", "-days", "365", "-in", "#{client_crt_path}.csr",
-                "-CA", ca_crt_path, "-CAkey", ca_key_path, "-CAcreateserial",
+                "-CA", tmp_ca_crt, "-CAkey", tmp_ca_key, "-CAcreateserial",
                 "-out", client_crt_path
               ], stderr_to_stdout: true) do
                 {_, 0} ->
                   # Clean up CSR
                   File.rm("#{client_crt_path}.csr")
                   Logger.info("Dev cert generated for user #{user_id}")
-                  {:ok, File.read!(ca_crt_path), File.read!(client_crt_path), File.read!(client_key_path)}
+                  {:ok, File.read!(tmp_ca_crt), File.read!(client_crt_path), File.read!(client_key_path)}
 
                 {err, _} ->
                   {:error, "Failed to sign cert: #{err}"}
