@@ -1,5 +1,6 @@
 import { color, printJSON } from './api'
 import { login, loginWithToken } from './commands/login'
+import { smartRun } from './commands/smart-run'
 import { deployWorkflow } from './commands/deploy'
 import { executionLogs } from './commands/logs'
 import { workflowList, workflowShow, workflowRun } from './commands/workflow'
@@ -72,8 +73,7 @@ export async function main(argv: string[]) {
     case 'deploy':
       return deployWorkflow(sub, jsonMode)
     case 'run': {
-      const runOpts = parseOpts()
-      return workflowRun('run', sub, runOpts.inputs || '{}', jsonMode)
+      return smartRun(rest, jsonMode)
     }
     case 'logs': {
       const opts = parseOpts()
