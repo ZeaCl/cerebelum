@@ -13,7 +13,7 @@ import { api, color, loadConfig, saveTokens } from '../api'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import { execSync, spawn, ChildProcess } from 'child_process'
+import { execSync, spawn } from 'child_process'
 
 const CERTS_DIR = path.join(os.homedir(), '.cerebelum', 'certs')
 const STATE_FILE = path.join(os.homedir(), '.cerebelum', 'state.json')
@@ -23,6 +23,17 @@ const DEFAULT_WF = 'workflow.py'
 
 export async function smartRun(args: string[], json: boolean) {
   const opts = parseRunOpts(args)
+  const wfFile = opts.file || args[0] || DEFAULT_WF
+
+  if (!fs.existsSync(wfFile) && args.length === 0) {
+    console.log(`\n${color('red', '❌')} No workflow.py found and no arguments given.`)
+    console.log(`\n  ${color('bold', 'Usage:')}`)
+    console.log(`    ${color('green', 'cerebelum run workflow.py')}  — deploy + execute`)
+    console.log(`    ${color('green', 'cerebelum run')}               — execute workflow.py in cwd`)
+    console.log('')
+    return
+  }
+
   const startTime = Date.now()
 
   console.log(`\n${color('cyan', '🧠 Cerebelum Run')}\n`)
@@ -281,10 +292,15 @@ function extractWorkflowName(code: string): string | null {
 }
 
 function findPythonWithSDK(): string | null {
-  const candidates = ['python3', 'python']
+  const candidates = [
+    path.join(process.cwd(), '.venv', 'bin', 'python'),
+    path.join(process.cwd(), '.venv', 'bin', 'python3'),
+    'python3',
+    'python',
+  ]
   for (const p of candidates) {
     try {
-      execSync(`${p} -c "import cerebelum"`, { timeout: 5000, stdio: 'pipe' })
+      execSync(`"${p}" -c "import cerebelum; import cerebelum.worker"`, { timeout: 5000, stdio: 'pipe' })
       return p
     } catch {}
   }
