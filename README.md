@@ -10,9 +10,9 @@
 
 **Build, run, and replay workflows with 100% determinism.** Event sourcing, graph-based DSL, multi-language SDKs.
 
-**Two modes:** [On-premise](#on-premise) (Elixir, zero infra) or [Cloud](#cloud) (ZEA Platform, multi-tenant).
+**Two modes:** [On-premise](#on-premise) (Elixir) or [Cloud](#cloud-quickstart) (ZEA Platform).
 
-[Quickstart](#on-premise) · [Cloud](#cloud) · [Docs](docs/index.md) · [CLI](docs/cli.md) · [API](docs/api/rest.md)
+[Cloud Quickstart](#cloud-quickstart) · [On-Premise](#on-premise) · [Docs](docs/index.md) · [CLI](docs/cli.md) · [SDK](docs/sdk/python.md)
 
 </div>
 
@@ -66,33 +66,38 @@ end
 
 ---
 
-## Cloud
+## ☁️ Cloud Quickstart
 
-Managed service on ZEA Platform. JWT auth, multi-tenancy.
+3 comandos para empezar:
 
 ```bash
-pip install cerebelum-sdk
-npx @zea.cl/cerebelum-cli login
+npx @zea.cl/create-cerebelum my-project
+cd my-project
+cerebelum run workflow.py
 ```
+
+El CLI resuelve todo automático: auth → certs → deploy → worker → execute → logs.
 
 ```python
+# workflow.py (generado por create-cerebelum)
 from cerebelum import step, workflow
+import asyncio
 
 @step
-async def hello(ctx, _prev):
-    return {"ok": f"Hello, {ctx.get('inputs', {}).get('name', 'World')}!"}
+async def obtener_datos(context, **kwargs):
+    await asyncio.sleep(0.8)
+    return {"usuarios": 1_250, "ventas": 34_500_000}
+
+@step
+async def procesar(context, obtener_datos=None, **kwargs):
+    return {"ticket_promedio": 27_600}
 
 @workflow
-def wf(w): w.timeline(hello)
+def analisis_ventas(wf):
+    wf.timeline(obtener_datos >> procesar)
 ```
 
-```bash
-cerebelum deploy workflow.py
-cerebelum run MyWorkflow --input '{"name":"ZEA"}'
-cerebelum logs <id> --follow
-```
-
-[Cloud docs →](docs/getting-started.md) · [CLI](docs/cli.md) · [REST API](docs/api/rest.md)
+[Cloud docs →](docs/getting-started.md) · [CLI](docs/cli.md) · [Python SDK](docs/sdk/python.md) · [REST API](docs/api/rest.md)
 
 ---
 
