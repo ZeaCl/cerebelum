@@ -18,90 +18,61 @@ defmodule Cerebelum.API.DevCertController do
   Generates a client certificate signed by the engine's CA.
   Requires JWT authentication.
 
-  Returns:
-    {
-      "ca_crt": "...",
-      "client_crt": "...",
-      "client_key": "..."
-    }
+  Returns: { "ca_crt": "...", "client_crt": "...", "client_key": "..." }
   """
   def create(conn, _params) do
     user_id = conn.assigns[:user_id] || "anonymous"
 
-    # Check certs directory exists
     unless File.exists?(@certs_dir) do
       conn
       |> put_status(:service_unavailable)
-      |> json(%{error: "certs_not_available", message: "CA not configured on this engine"})
-      |> halt()
+      |> json(%{error: "certs_not_available"})
     else
-      # Generate certs for this user (idempotent)
       case generate_client_cert(user_id) do
         {:ok, ca_crt, client_crt, client_key} ->
-          json(conn, %{
-            ca_crt: ca_crt,
-            client_crt: client_crt,
-            client_key: client_key
-          })
+          json(conn, %{ca_crt: ca_crt, client_crt: client_crt, client_key: client_key})
 
         {:error, reason} ->
-          Logger.error("Failed to generate dev cert for #{user_id}: #{inspect(reason)}")
+          Logger.error("Dev cert failed for #{user_id}: #{inspect(reason)}")
           conn
           |> put_status(:internal_server_error)
-          |> json(%{error: "cert_generation_failed", message: inspect(reason)})
+          |> json(%{error: "cert_generation_failed"})
       end
     end
   end
 
-  # Generate a client certificate signed by the engine's CA.
-  # Generates in /tmp to avoid read-only volume issues.
   defp generate_client_cert(user_id) do
     user_hash =
       :crypto.hash(:sha256, user_id)
       |> Base.encode16(case: :lower)
       |> binary_part(0, 16)
 
-    # Ensure tmp dir exists
     File.mkdir_p!(@tmp_dir)
 
     client_key_path = Path.join(@tmp_dir, "client-#{user_hash}.key")
     client_crt_path = Path.join(@tmp_dir, "client-#{user_hash}.crt")
     ca_crt_path = Path.join(@certs_dir, "ca.crt")
     ca_key_path = Path.join(@certs_dir, "ca.key")
-      # Generate new client key
-      case System.cmd("openssl", ["genrsa", "-out", client_key_path, "4096"], stderr_to_stdout: true) do
-        {_, 0} ->
-          # Generate CSR
-          subject = "/CN=dev-#{user_hash}"
-          case System.cmd("openssl", [
-            "req", "-new", "-key", client_key_path, "-out", "#{client_crt_path}.csr",
-            "-subj", subject
-          ], stderr_to_stdout: true) do
-            {_, 0} ->
-              # Sign with CA (use random serial to avoid writing .srl to read-only volume)
-              serial = :rand.uniform(999_999)
-              case System.cmd("openssl", [
-                "x509", "-req", "-days", "365", "-in", "#{client_crt_path}.csr",
-                "-CA", ca_crt_path, "-CAkey", ca_key_path, "-set_serial", "#{serial}",
-                "-out", client_crt_path
-              ], stderr_to_stdout: true) do
-                {_, 0} ->
-                  # Clean up CSR
-                  File.rm("#{client_crt_path}.csr")
-                  Logger.info("Dev cert generated for user #{user_id}")
-                  {:ok, File.read!(ca_crt_path), File.read!(client_crt_path), File.read!(client_key_path)}
 
-                {err, _} ->
-                  {:error, "Failed to sign cert: #{err}"}
-              end
+    # Idempotent: reuse existing cert
+    if File.exists?(client_crt_path) and File.exists?(client_key_path) do
+      Logger.info("Dev cert reused for #{user_id}")
+      {:ok, File.read!(ca_crt_path), File.read!(client_crt_path), File.read!(client_key_path)}
+    else
+      do_generate(user_id, user_hash, client_key_path, client_crt_path, ca_crt_path, ca_key_path)
+    end
+  end
 
-            {err, _} ->
-              {:error, "Failed to create CSR: #{err}"}
-          end
-
-        {err, _} ->
-          {:error, "Failed to generate key: #{err}"}
-      end
+  defp do_generate(user_id, user_hash, key_path, crt_path, ca_crt, ca_key) do
+    with {_, 0} <- System.cmd("openssl", ["genrsa", "-out", key_path, "4096"], stderr_to_stdout: true),
+         {_, 0} <- System.cmd("openssl", ["req", "-new", "-key", key_path, "-out", "#{crt_path}.csr", "-subj", "/CN=dev-#{user_hash}"], stderr_to_stdout: true),
+         serial = :rand.uniform(999_999),
+         {_, 0} <- System.cmd("openssl", ["x509", "-req", "-days", "365", "-in", "#{crt_path}.csr", "-CA", ca_crt, "-CAkey", ca_key, "-set_serial", "#{serial}", "-out", crt_path], stderr_to_stdout: true) do
+      File.rm("#{crt_path}.csr")
+      Logger.info("Dev cert generated for #{user_id}")
+      {:ok, File.read!(ca_crt), File.read!(crt_path), File.read!(key_path)}
+    else
+      {err, code} -> {:error, "openssl failed (code=#{code}): #{err}"}
     end
   end
 end
