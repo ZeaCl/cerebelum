@@ -1,0 +1,29 @@
+name: Publish Create-Cerebelum to NPM
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'create-cerebelum/**'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to NPM
+        working-directory: create-cerebelum
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

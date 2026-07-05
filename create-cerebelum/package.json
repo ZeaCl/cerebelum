@@ -1,0 +1,16 @@
+{
+  "name": "@zea.cl/create-cerebelum",
+  "version": "0.1.0",
+  "description": "Scaffold a new Cerebelum workflow project",
+  "bin": {
+    "create-cerebelum": "./bin/create-cerebelum.js"
+  },
+  "files": ["bin", "template"],
+  "keywords": ["cerebelum", "workflow", "scaffold", "create"],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZeaCl/cerebelum.git",
+    "directory": "create-cerebelum"
+  }
+}
