@@ -43,6 +43,9 @@ defmodule Cerebelum.API.Router do
 
     # Workers listing (requires auth)
     get("/workers", WorkerController, :index)
+
+    # Dev certificates for worker mTLS
+    post("/dev-certs", DevCertController, :create)
   end
 
   # Internal API for Python workers (no JWT required)
