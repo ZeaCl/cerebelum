@@ -1,6 +1,6 @@
 {
   "name": "@zea.cl/cerebelum-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cerebelum CLI — Deterministic workflow orchestration from the terminal",
   "bin": {
     "cerebelum": "./bin/cerebelum.js"
