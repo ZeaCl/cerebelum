@@ -10,6 +10,7 @@ defmodule Cerebelum.API.DevCertController do
   require Logger
 
   @certs_dir "/app/certs"
+  @tmp_dir "/tmp/cerebelum-certs"
 
   @doc """
   POST /api/v1/dev-certs
@@ -53,16 +54,18 @@ defmodule Cerebelum.API.DevCertController do
   end
 
   # Generate a client certificate signed by the engine's CA.
-  # Idempotent: derives a stable filename from user_id hash.
+  # Generates in /tmp to avoid read-only volume issues.
   defp generate_client_cert(user_id) do
-    # Use a hash of user_id for stable certificate naming (idempotent)
     user_hash =
       :crypto.hash(:sha256, user_id)
       |> Base.encode16(case: :lower)
       |> binary_part(0, 16)
 
-    client_key_path = Path.join(@certs_dir, "client-#{user_hash}.key")
-    client_crt_path = Path.join(@certs_dir, "client-#{user_hash}.crt")
+    # Ensure tmp dir exists
+    File.mkdir_p!(@tmp_dir)
+
+    client_key_path = Path.join(@tmp_dir, "client-#{user_hash}.key")
+    client_crt_path = Path.join(@tmp_dir, "client-#{user_hash}.crt")
     ca_crt_path = Path.join(@certs_dir, "ca.crt")
     ca_key_path = Path.join(@certs_dir, "ca.key")
 
