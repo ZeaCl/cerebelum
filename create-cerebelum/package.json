@@ -1,6 +1,6 @@
 {
   "name": "@zea.cl/create-cerebelum",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Scaffold a new Cerebelum workflow project",
   "bin": {
     "create-cerebelum": "./bin/create-cerebelum.js"
