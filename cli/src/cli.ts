@@ -71,6 +71,10 @@ export async function main(argv: string[]) {
     }
     case 'deploy':
       return deployWorkflow(sub, jsonMode)
+    case 'run': {
+      const runOpts = parseOpts()
+      return workflowRun('run', sub, runOpts.inputs || '{}', jsonMode)
+    }
     case 'logs': {
       const opts = parseOpts()
       return executionLogs(sub, rest.includes('--follow') || rest.includes('-f') || args.includes('--follow') || args.includes('-f'), jsonMode)

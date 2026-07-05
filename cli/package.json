@@ -1,12 +1,22 @@
 {
   "name": "@zea.cl/cerebelum-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Cerebelum CLI — Deterministic workflow orchestration from the terminal",
   "bin": {
     "cerebelum": "./bin/cerebelum.js"
   },
-  "files": ["dist", "bin"],
-  "keywords": ["workflow", "orchestration", "cli", "ai", "agent", "temporal"],
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "keywords": [
+    "workflow",
+    "orchestration",
+    "cli",
+    "ai",
+    "agent",
+    "temporal"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
@@ -24,4 +34,3 @@
     "directory": "cli"
   }
 }
- 
