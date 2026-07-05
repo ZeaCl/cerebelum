@@ -1,57 +1,36 @@
 # STATE.md — Cerebelum Production Deploy
 
-> **Plan activo**: `.plan/20260702-213331-2d8809e/PLAN.md`
+> **Plan activo**: `.plan/20260705-122548-7ec618d/PLAN.md` (Publicar SDKs + create-cerebelum)
+> **Plan anterior**: `.plan/20260702-213331-2d8809e/PLAN.md` ✅ Completado
 > **Board**: https://github.com/orgs/ZeaCl/projects/6
-> **Última actualización**: 2026-07-04
+> **Última actualización**: 2026-07-05
 
 ---
 
-## Estado general
+## ✅ Fases completadas
 
-| Fase | Descripción | Estado |
-|---|---|---|
-| A | Database Init | ✅ Done |
-| B | Docker Image + CI/CD | ✅ Done |
-| T | Terraform secrets + DNS | ✅ Done |
-| C | Deploy en ZEA Platform | ✅ Done |
-| D | Validación REST API | ✅ Done |
-| E | Validación Demo Cloud | ✅ Done |
-| **F** | **gRPC + Python Worker** | 🔴 **En progreso** |
-| G | Multi-tenancy + Rate Limiting | ⚪ Todo |
-| H | Docs finales | ⚪ Todo |
+| Fase | Descripción |
+|---|---|
+| A | Database Init |
+| B | Docker Image + CI/CD |
+| T | Terraform secrets + DNS |
+| C | Deploy en ZEA Platform |
+| D | Validación REST API |
+| E | Validación Demo Cloud (login, deploy, run, logs) |
+| F | gRPC + Python Worker (mTLS, lifecycle) |
+| G | Multi-tenancy + Rate Limiting |
 
 ---
 
-## 🔴 Fase F — En progreso
+## 🔴 H — Publicar SDKs + create-cerebelum
 
 ### Objetivo
-Validar que un Python Worker se conecta al engine vía gRPC con mTLS, registra workflows, y ejecuta pasos distribuidos con eventos etiquetados con `organization_id`.
+Publicar paquetes en PyPI/npm para que `npx @zea.cl/create-cerebelum my-project` funcione en cualquier máquina.
 
 ### Progreso
-- [x] F0. Certs mTLS generados (`priv/certs/`)
-- [x] F1. gRPC server con mTLS corriendo en prod
-- [x] F2. Health check → `"grpc": "running"`
-- [x] F3. Certs montados en container (`/app/certs`)
-- [x] F4. Worker Python conecta vía mTLS (SSH tunnel)
-- [x] F5. Worker registrado exitosamente (`RegisterResponse.success=true`)
-- [ ] F6. Abrir puerto 50051 en AWS SG (terraform apply — sin creds)
-- [ ] F7. Test completo: poll → execute → submit → eventos con org_id
+- [ ] H1. Python SDK → PyPI (`cerebelum-sdk`)
+- [ ] H2. CLI → npm (`@zea.cl/cerebelum-cli`)
+- [ ] H3. Scaffold → npm (`@zea.cl/create-cerebelum`)
 
----
-
-## ⚪ Fase G — Multi-tenancy & Rate Limiting
-
-### Objetivo
-1. Org A no ve ejecuciones de Org B
-2. Rate limit: 429 al exceder 1000 req/min
-
-### Progreso
-- [ ] G1. Diagnosticar estado actual del rate limiter
-- [ ] G2. Diagnosticar extracción de org_id del JWT
-- [ ] G3. Filtrar ejecuciones por org_id
-- [ ] G4. Test: Org A no ve ejecuciones de Org B
-- [ ] G5. Test: Rate limit → 429
-
-## ⚪ Fase H — Sin empezar
-- `llms.txt` actualizado
-- README.md ZEA actualizado
+### Próximo paso
+H1.1 — Crear `pyproject.toml` para el SDK de Python
