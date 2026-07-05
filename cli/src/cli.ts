@@ -1,6 +1,7 @@
 import { color, printJSON } from './api'
 import { login, loginWithToken } from './commands/login'
 import { smartRun } from './commands/smart-run'
+import { showStatus, showLastLogs } from './commands/status'
 import { deployWorkflow } from './commands/deploy'
 import { executionLogs } from './commands/logs'
 import { workflowList, workflowShow, workflowRun } from './commands/workflow'
@@ -75,8 +76,11 @@ export async function main(argv: string[]) {
     case 'run': {
       return smartRun(rest, jsonMode)
     }
+    case 'status':
+      return showStatus()
     case 'logs': {
-      const opts = parseOpts()
+      if (!sub) return showLastLogs(rest.includes('--follow') || rest.includes('-f'))
+      const logOpts = parseOpts()
       return executionLogs(sub, rest.includes('--follow') || rest.includes('-f') || args.includes('--follow') || args.includes('-f'), jsonMode)
     }
     case 'workflow': {
