@@ -54,8 +54,9 @@ defmodule Cerebelum.API.DevCertController do
     ca_crt_path = Path.join(@certs_dir, "ca.crt")
     ca_key_path = Path.join(@certs_dir, "ca.key")
 
-    # Idempotent: reuse existing cert
-    if File.exists?(client_crt_path) and File.exists?(client_key_path) do
+    # Idempotent: reuse existing VALID cert (not empty)
+    if File.exists?(client_crt_path) and File.exists?(client_key_path)
+       and File.stat!(client_crt_path).size > 0 do
       Logger.info("Dev cert reused for #{user_id}")
       {:ok, File.read!(ca_crt_path), File.read!(client_crt_path), File.read!(client_key_path)}
     else
@@ -72,7 +73,12 @@ defmodule Cerebelum.API.DevCertController do
       Logger.info("Dev cert generated for #{user_id}")
       {:ok, File.read!(ca_crt), File.read!(crt_path), File.read!(key_path)}
     else
-      {err, code} -> {:error, "openssl failed (code=#{code}): #{err}"}
+      {err, code} ->
+        # Clean up on failure
+        File.rm_rf(key_path)
+        File.rm_rf(crt_path)
+        File.rm_rf("#{crt_path}.csr")
+        {:error, "openssl failed (code=#{code}): #{err}"}
     end
   end
 end
