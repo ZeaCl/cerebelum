@@ -160,34 +160,34 @@ async function ensureWorker(): Promise<number | null> {
 
   console.log(`  ${color('yellow', '❌')} Worker — iniciando...`)
 
-  // Start worker using the cerebelum SDK from demo-cloud venv
-  // Use the existing working worker script
-  const venvPython = findVenvPython()
-  if (!venvPython) {
-    console.log(`  ${color('red', '✕')} Worker — no se encontró Python con cerebelum-sdk`)
-    console.log(`  ${color('gray', '   Instalá: pip install cerebelum-sdk')}`)
+  // Start worker using python -m cerebelum.worker (from SDK)
+  console.log(`  ${color('yellow', '❌')} Worker — iniciando...`)
+
+  // Find Python with cerebelum SDK
+  const pythonBin = findPythonWithSDK()
+  if (!pythonBin) {
+    console.log(`  ${color('red', '✕')} Worker — cerebelum-sdk no encontrado`)
+    console.log(`  ${color('gray', '   pip install cerebelum-sdk')}`)
     return null
   }
 
-  // Generate worker script
-  const workerScript = path.join(os.homedir(), '.cerebelum', 'worker.py')
-  writeWorkerScript(workerScript)
-
-  const child = spawn(venvPython, [workerScript], {
+  const child = spawn(pythonBin, ['-m', 'cerebelum.worker'], {
     detached: false,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'inherit'],
   })
 
-  // Wait for worker to register with engine
+  // Wait for worker to register
   let registered = false
   for (let i = 0; i < 15; i++) {
     await new Promise(r => setTimeout(r, 2000))
-    const res = await api('GET', '/api/v1/workers').catch(() => ({ status: 0, data: {} }))
-    const workers = ((res as any).data as any)?.data || []
-    if (workers.length > 0) {
-      registered = true
-      break
-    }
+    try {
+      const res = await api('GET', '/api/v1/workers')
+      const workers = ((res as any).data as any)?.data || []
+      if (workers.length > 0) {
+        registered = true
+        break
+      }
+    } catch {}
   }
 
   if (!registered) {
@@ -280,16 +280,8 @@ function extractWorkflowName(code: string): string | null {
   return null
 }
 
-function findVenvPython(): string | null {
-  // Check common locations
-  const cwd = process.cwd()
-  const candidates = [
-    path.join(cwd, '.venv', 'bin', 'python'),
-    path.join(cwd, '.venv', 'bin', 'python3'),
-    '/Users/dev/Documents/zea/cerebelum-demo-cloud/.venv/bin/python',
-    'python3',
-    'python',
-  ]
+function findPythonWithSDK(): string | null {
+  const candidates = ['python3', 'python']
   for (const p of candidates) {
     try {
       execSync(`${p} -c "import cerebelum"`, { timeout: 5000, stdio: 'pipe' })
@@ -297,55 +289,4 @@ function findVenvPython(): string | null {
     } catch {}
   }
   return null
-}
-
-function writeWorkerScript(dest: string) {
-  const certsDir = CERTS_DIR
-  const engineUrl = loadConfig().baseUrl.replace('https://', '')
-  const gRPCPort = 50051
-  const coreUrl = `${new URL(loadConfig().baseUrl).hostname}:${gRPCPort}`
-  const content = `"""Auto-generated Cerebelum worker — conecta a ${coreUrl}."""
-import asyncio, os, sys, grpc
-
-CERTS_DIR = ${JSON.stringify(certsDir)}
-CORE_URL = ${JSON.stringify(coreUrl)}
-
-# Load certs
-with open(os.path.join(CERTS_DIR, "ca.crt"), "rb") as f: ca = f.read()
-with open(os.path.join(CERTS_DIR, "client.crt"), "rb") as f: cert = f.read()
-with open(os.path.join(CERTS_DIR, "client.key"), "rb") as f: key = f.read()
-
-creds = grpc.ssl_channel_credentials(root_certificates=ca, private_key=key, certificate_chain=cert)
-options = [("grpc.ssl_target_name_override", "cerebelum.zea.cl")]
-channel = grpc.secure_channel(CORE_URL, creds, options)
-
-from cerebelum.proto.worker_service_pb2_grpc import WorkerServiceStub
-from cerebelum.proto.worker_service_pb2 import RegisterRequest, PollRequest, UnregisterRequest
-from cerebelum.distributed import Worker
-
-stub = WorkerServiceStub(channel)
-
-async def main():
-    worker_id = f"auto-{os.getpid()}"
-    stub.Register(RegisterRequest(worker_id=worker_id, language="python", capabilities=["*"], version="1.0"), timeout=10)
-
-    # Poll loop — execute any step generically
-    try:
-        while True:
-            task = stub.PollForTask(PollRequest(worker_id=worker_id, timeout_ms=30000), timeout=35)
-            if task.task_id:
-                result = TaskResult(
-                    task_id=task.task_id,
-                    execution_id=task.execution_id,
-                    worker_id=worker_id,
-                    status=TaskStatus.SUCCESS,
-                )
-                stub.SubmitResult(result, timeout=10)
-    except Exception:
-        pass
-
-asyncio.run(main())
-`
-  fs.writeFileSync(dest, content)
-  fs.chmodSync(dest, 0o755)
 }
