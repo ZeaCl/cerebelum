@@ -69,4 +69,6 @@ coverage/
 .DS_Store
 specs/*
 docs/*
-python-sdk/docspriv/certs/*.key
+priv/certs/*.key
+priv/certs/*.srl
+*.zip
