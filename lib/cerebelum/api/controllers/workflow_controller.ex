@@ -32,25 +32,28 @@ defmodule Cerebelum.API.WorkflowController do
         }
       end)
 
-    # Python worker workflows (via WorkerRegistry gRPC)
+    # Python worker capabilities (via WorkerRegistry gRPC)
+    # Workers return a list of maps with :worker_id, :capabilities, :language, etc.
     python_workers = Cerebelum.Infrastructure.WorkerRegistry.get_workers()
 
     python_data =
-      Enum.map(python_workers, fn {_worker_id, worker} ->
-        workflows = worker[:workflows] || []
+      Enum.flat_map(python_workers, fn worker ->
+        worker_id = worker[:worker_id] || worker["worker_id"]
+        capabilities = worker[:capabilities] || []
+        language = worker[:language] || worker["language"] || "python"
 
-        Enum.map(workflows, fn wf ->
+        # Each capability is a step the worker can execute
+        Enum.map(capabilities, fn cap ->
           %{
-            id: wf[:id] || wf["id"],
-            label: wf[:name] || wf["name"] || wf[:id] || wf["id"],
-            version: wf[:version] || wf["version"] || "0.1.0",
-            steps: wf[:steps] || wf["steps"] || [],
-            language: "python",
-            worker_id: worker[:id] || worker["id"]
+            id: "#{worker_id}/#{cap}",
+            label: cap,
+            version: worker[:version] || worker["version"] || "0.1.0",
+            steps: [cap],
+            language: language,
+            worker_id: worker_id
           }
         end)
       end)
-      |> List.flatten()
 
     # Deployed blueprints (via BlueprintRegistry)
     blueprints = BlueprintRegistry.list_blueprints()
