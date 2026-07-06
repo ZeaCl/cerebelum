@@ -206,13 +206,24 @@ defmodule Cerebelum.API.WorkflowController do
   end
 
   defp find_workflow_in_workers(workers, workflow_id) do
-    Enum.find_value(workers, fn {_worker_id, worker} ->
-      workflows = worker[:workflows] || []
+    Enum.find_value(workers, fn worker ->
+      capabilities = worker[:capabilities] || []
+      worker_id = worker[:worker_id] || worker["worker_id"]
 
-      Enum.find(workflows, fn wf ->
-        (wf[:id] || wf["id"]) == workflow_id or
-          (wf[:name] || wf["name"]) == workflow_id
-      end)
+      # Check if any capability matches the requested workflow_id
+      case Enum.find(capabilities, fn cap -> cap == workflow_id end) do
+        nil -> false
+        cap ->
+          %{
+            id: cap,
+            name: cap,
+            label: cap,
+            version: worker[:version] || worker["version"] || "0.1.0",
+            steps: [cap],
+            language: worker[:language] || worker["language"] || "python",
+            worker_id: worker_id
+          }
+      end
     end)
   end
 end
