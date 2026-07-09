@@ -145,9 +145,8 @@ defmodule Cerebelum.API.ExecutionController do
 
       {:error, :not_found} ->
         # Check if it's a completed/failed execution in event store
-        case EventStore.get_events(execution_id) do
-          {:ok, events} when events != [] ->
-            state = StateReconstructor.reconstruct(events)
+        case StateReconstructor.reconstruct(execution_id) do
+          {:ok, state} ->
 
             json(conn, %{
               execution_id: execution_id,
