@@ -60,6 +60,30 @@ defmodule Cerebelum.Execution.Approval do
   end
 
   @doc """
+  Approves a pending approval request by execution ID.
+
+  Finds the execution process by ID and approves it.
+
+  ## Parameters
+
+  - `execution_id` - The execution UUID
+  - `approval_response` - Optional approval data/metadata (default: %{})
+
+  ## Returns
+
+  - `{:ok, :approved}` - Approval was successful
+  - `{:error, :not_found}` - Execution not found or not running
+  - `{:error, reason}` - If the execution is not waiting for approval
+  """
+  @spec approve_by_id(String.t(), map()) :: {:ok, :approved} | {:error, term()}
+  def approve_by_id(execution_id, approval_response \\ %{}) do
+    case find_execution_pid(execution_id) do
+      {:ok, pid} -> approve(pid, approval_response)
+      error -> error
+    end
+  end
+
+  @doc """
   Rejects a pending approval request.
 
   ## Parameters
@@ -147,5 +171,17 @@ defmodule Cerebelum.Execution.Approval do
     else
       {:error, :not_waiting_for_approval}
     end
+  end
+
+  # ── Private Helpers ──
+
+  defp find_execution_pid(execution_id) do
+    Cerebelum.Execution.Supervisor.list_executions()
+    |> Enum.find_value({:error, :not_found}, fn pid ->
+      if Process.alive?(pid) do
+        status = Engine.get_status(pid)
+        if status.execution_id == execution_id, do: {:ok, pid}
+      end
+    end)
   end
 end

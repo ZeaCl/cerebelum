@@ -221,6 +221,26 @@ defmodule Cerebelum.API.ExecutionController do
     end
   end
 
+  @doc """
+  Approve a workflow step waiting for human input.
+
+  POST /api/v1/executions/:id/approve
+  """
+  def approve(conn, %{"id" => execution_id} = params) do
+    approval_response = %{
+      approved_by: params["approved_by"],
+      notes: params["notes"]
+    }
+
+    case Cerebelum.Execution.Approval.approve_by_id(execution_id, approval_response) do
+      {:ok, :approved} ->
+        json(conn, %{execution_id: execution_id, status: "approved"})
+
+      {:error, reason} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: inspect(reason)})
+    end
+  end
+
   # ── Helpers ──
 
   # Execute a blueprint stored in BlueprintRegistry.
