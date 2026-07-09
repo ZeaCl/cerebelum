@@ -1,0 +1,963 @@
+openapi: 3.0.3
+info:
+  title: Cerebelum Workflow Orchestration Engine
+  description: |
+    Deterministic workflow orchestration engine with event sourcing, graph-based DSL, and multi-language SDKs.
+
+    ## Features
+    - Deterministic workflow execution (same inputs → same outputs, always)
+    - Event Sourcing (18 event types, complete audit trail)
+    - Graph Workflows (cycles, branches, diverges, parallel)
+    - Multi-Language (Elixir native + Python SDK + TypeScript SDK via gRPC)
+    - Long-Running Workflows (sleep, hibernation, resurrection)
+    - Human-in-the-Loop (approval workflows)
+
+    ## Authentication
+    Authenticated endpoints require a JWT Bearer token issued by Thalamus:
+    ```
+    Authorization: Bearer <your_jwt_token>
+    ```
+
+    Public endpoints (`/health`, `/api/v1/workflows`) require no authentication.
+
+    JWT must include:
+    - `sub` — User ID
+    - `organization_id` — Multi-tenant scope (cloud mode)
+    - `exp` — Expiration timestamp
+
+    ## Rate Limiting
+    - Authenticated API: 1000 req/min per organization_id
+    - Dev Certs: 5 req/min per user
+
+    Rate limit headers:
+    - `X-RateLimit-Limit`: Maximum requests allowed
+    - `X-RateLimit-Remaining`: Requests remaining
+    - `X-RateLimit-Reset`: Unix timestamp when limit resets
+
+  version: 0.1.0
+  contact:
+    name: ZEA Platform
+    url: https://github.com/ZeaCl/cerebelum
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:4001
+    description: Local / Docker development
+  - url: https://cerebelum.zea.cl
+    description: ZEA Cloud production
+
+tags:
+  - name: Health
+    description: Health check (no auth)
+  - name: Workflows
+    description: Workflow discovery, deployment, and metadata
+  - name: Executions
+    description: Create, monitor, and control workflow executions
+  - name: Workers
+    description: Worker registration and listing
+  - name: Dev Certs
+    description: mTLS certificate generation for workers
+
+paths:
+  # ========================================================================
+  # HEALTH
+  # ========================================================================
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns the health status of the engine and its dependencies.
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Engine is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: '2026-07-09T14:15:00Z'
+                  version:
+                    type: string
+                    example: 0.1.0
+                  services:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        example: ok
+                      grpc:
+                        type: string
+                        example: running
+
+  # ========================================================================
+  # WORKFLOWS
+  # ========================================================================
+
+  /api/v1/workflows:
+    get:
+      tags: [Workflows]
+      summary: List all workflows
+      description: |
+        Returns all registered workflows: Elixir-native modules, Python/TypeScript worker capabilities,
+        and deployed blueprints. No authentication required.
+      operationId: listWorkflows
+      security: []
+      responses:
+        '200':
+          description: List of workflows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkflowSummary'
+              example:
+                data:
+                  - id: Elixir.OrderWorkflow
+                    label: Order Workflow
+                    version: abc123def456
+                    steps: []
+                    language: elixir
+                  - id: worker-1/fetch_data
+                    label: fetch_data
+                    version: 0.1.0
+                    steps: [fetch_data]
+                    language: python
+                    worker_id: worker-1
+                  - id: analisis_ventas
+                    label: analisis_ventas
+                    version: 0.1.0
+                    steps: [obtener_datos, procesar_datos, notificar]
+                    language: python
+
+  /api/v1/workflows/{id}:
+    get:
+      tags: [Workflows]
+      summary: Get workflow metadata
+      description: Returns metadata for a specific workflow found in the worker registry.
+      operationId: getWorkflow
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Workflow identifier
+      responses:
+        '200':
+          description: Workflow details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkflowSummary'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/workflows/{id}/code:
+    get:
+      tags: [Workflows]
+      summary: Get workflow source code
+      description: Returns the Python/TypeScript source code for a deployed workflow. Not available in production.
+      operationId: getWorkflowCode
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '404':
+          description: Source code not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Source code not available in production
+
+  /api/v1/workflows/deploy:
+    post:
+      tags: [Workflows]
+      summary: Deploy a workflow blueprint
+      description: |
+        Deploys Python/TypeScript workflow code as a registered blueprint.
+        The engine extracts `@step`-decorated function names to build the step list.
+        Requires JWT authentication.
+      operationId: deployWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, code]
+              properties:
+                name:
+                  type: string
+                  description: Workflow identifier
+                  example: analisis_ventas
+                module:
+                  type: string
+                  description: Elixir module name for routing
+                  example: Elixir.AnalisisVentas
+                code:
+                  type: string
+                  description: Python/TypeScript source code
+                  example: |
+                    from cerebelum import step, workflow
+
+                    @step
+                    async def obtener_datos(context, **kwargs):
+                        return {"data": []}
+
+                    @workflow
+                    def main(wf):
+                        wf.timeline(obtener_datos)
+                language:
+                  type: string
+                  enum: [python, typescript]
+                  default: python
+      responses:
+        '201':
+          description: Blueprint deployed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      language:
+                        type: string
+                      steps:
+                        type: array
+                        items:
+                          type: string
+              example:
+                data:
+                  id: analisis_ventas
+                  name: analisis_ventas
+                  language: python
+                  steps: [obtener_datos, procesar_datos, notificar]
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_name:
+                  value:
+                    error: Missing 'name' field
+                missing_code:
+                  value:
+                    error: Missing 'code' field
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ========================================================================
+  # EXECUTIONS
+  # ========================================================================
+
+  /api/v1/executions:
+    get:
+      tags: [Executions]
+      summary: List executions
+      description: Returns executions with optional status filter and pagination.
+      operationId: listExecutions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [running, completed, failed]
+          description: Filter by execution status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+          description: Maximum results per page
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: List of executions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  executions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExecutionSummary'
+                  total:
+                    type: integer
+              example:
+                executions:
+                  - execution_id: exec_abc123
+                    status: completed
+                    workflow: Elixir.OrderWorkflow
+                    events_count: 6
+                  - execution_id: exec_def456
+                    status: running
+                    workflow: analisis_ventas
+                    events_count: 3
+                total: 2
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Executions]
+      summary: Start a workflow execution
+      description: |
+        Creates and starts a new workflow execution.
+        Supports both compiled Elixir workflows and deployed blueprints.
+      operationId: createExecution
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workflow]
+              properties:
+                workflow:
+                  type: string
+                  description: Workflow name (Elixir module or blueprint name)
+                  example: analisis_ventas
+                input:
+                  type: object
+                  description: Initial inputs for the workflow
+                  example:
+                    periodo: Q4-2025
+                    region: LATAM
+      responses:
+        '201':
+          description: Execution started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: exec_abc123
+                      status:
+                        type: string
+                        example: started
+                      workflow:
+                        type: string
+                        example: analisis_ventas
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Execution failed to start
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/executions/{id}:
+    get:
+      tags: [Executions]
+      summary: Get execution status
+      description: Returns the current state, progress, and results of an execution.
+      operationId: getExecution
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Execution ID
+      responses:
+        '200':
+          description: Execution status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionStatus'
+              examples:
+                running:
+                  value:
+                    execution_id: exec_abc123
+                    state: executing_step
+                    progress: '2/5'
+                    current_step: process_payment
+                    results:
+                      validate_order:
+                        id: ORD-1
+                        valid: true
+                    error: null
+                completed:
+                  value:
+                    execution_id: exec_abc123
+                    state: completed
+                    results:
+                      validate_order:
+                        id: ORD-1
+                        valid: true
+                      ship_order:
+                        tracking: TRACK-123456
+                      notify_customer:
+                        sent: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Execution not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: not_found
+                message: Execution exec_abc123 not found
+
+  /api/v1/executions/{id}/events:
+    get:
+      tags: [Executions]
+      summary: Get execution events
+      description: Returns the full event sourcing audit trail for an execution.
+      operationId: getExecutionEvents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Execution ID
+      responses:
+        '200':
+          description: List of domain events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_id:
+                    type: string
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  count:
+                    type: integer
+              example:
+                execution_id: exec_abc123
+                events:
+                  - version: 1
+                    type: ExecutionStartedEvent
+                    data:
+                      workflow_module: analisis_ventas
+                      workflow_version: 'sha256:abc123...'
+                      inputs:
+                        periodo: Q4-2025
+                    timestamp: '2026-07-09T14:15:00Z'
+                  - version: 2
+                    type: StepExecutedEvent
+                    data:
+                      step_name: obtener_datos
+                      result:
+                        usuarios: 1250
+                        ventas: 34500000
+                    timestamp: '2026-07-09T14:15:01Z'
+                count: 2
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/executions/{id}/stop:
+    post:
+      tags: [Executions]
+      summary: Stop execution
+      description: Stops a running workflow execution.
+      operationId: stopExecution
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Execution ID
+      responses:
+        '200':
+          description: Execution stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_id:
+                    type: string
+                  status:
+                    type: string
+                    example: stopped
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Execution not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/executions/{id}/resume:
+    post:
+      tags: [Executions]
+      summary: Resume execution
+      description: Resumes a paused or hibernated workflow execution. Reconstructs state from events.
+      operationId: resumeExecution
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Execution ID
+      responses:
+        '200':
+          description: Execution resumed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_id:
+                    type: string
+                  status:
+                    type: string
+                    example: resumed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Cannot resume (already running, completed, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: already_running
+
+  /api/v1/executions/{id}/approve:
+    post:
+      tags: [Executions]
+      summary: Approve HITL step
+      description: Approves a workflow step waiting for human input.
+      operationId: approveExecution
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Execution ID
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                approved_by:
+                  type: string
+                  description: Name of approver
+                  example: Alice
+                notes:
+                  type: string
+                  description: Approval notes
+                  example: Looks good, proceed
+      responses:
+        '200':
+          description: Step approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_id:
+                    type: string
+                  status:
+                    type: string
+                    example: approved
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ========================================================================
+  # WORKERS
+  # ========================================================================
+
+  /api/v1/workers:
+    get:
+      tags: [Workers]
+      summary: List workers
+      description: Returns all registered Python/TypeScript workers.
+      operationId: listWorkers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of workers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Worker'
+              example:
+                data:
+                  - worker_id: worker-1
+                    url: http://worker-host:9000
+                    capabilities: [fetch_data, process_payment]
+                    language: python
+                    version: 0.1.0
+                    registered_at: '2026-07-09T14:15:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/internal/workers/register:
+    post:
+      tags: [Workers]
+      summary: Register a worker
+      description: |
+        Called by worker processes on startup. Internal endpoint — no JWT required.
+        Accessible only within the internal network.
+      operationId: registerWorker
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [worker_id, url]
+              properties:
+                worker_id:
+                  type: string
+                  description: Unique worker identifier
+                  example: worker-1
+                url:
+                  type: string
+                  description: Worker gRPC callback URL
+                  example: http://worker-host:9000
+                workflows:
+                  type: array
+                  items:
+                    type: string
+                  description: Step capabilities this worker can execute
+                  example: [fetch_data, process_payment, send_email]
+      responses:
+        '200':
+          description: Worker registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+        '500':
+          description: Registration failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ========================================================================
+  # DEV CERTS
+  # ========================================================================
+
+  /api/v1/dev-certs:
+    post:
+      tags: [Dev Certs]
+      summary: Generate dev mTLS certificates
+      description: |
+        Generates client certificates for worker mTLS, signed by the engine's CA.
+        Idempotent — same user always receives the same certificate.
+        Rate limited: 5 requests per minute per user.
+      operationId: generateDevCerts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Certificates generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ca_crt:
+                    type: string
+                    description: CA certificate (PEM)
+                    example: '-----BEGIN CERTIFICATE-----\n...'
+                  client_crt:
+                    type: string
+                    description: Client certificate (PEM)
+                    example: '-----BEGIN CERTIFICATE-----\n...'
+                  client_key:
+                    type: string
+                    description: Client private key (PEM)
+                    example: '-----BEGIN RSA PRIVATE KEY-----\n...'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: rate_limit_exceeded
+                message: Too many requests
+        '503':
+          description: Certificates not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: certs_not_available
+
+# ========================================================================
+# COMPONENTS
+# ========================================================================
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token issued by Thalamus.
+        Obtain via OAuth2 Client Credentials grant or Authorization Code + PKCE flow.
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: unauthorized
+            message: Invalid or missing JWT token
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error description
+
+    WorkflowSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique workflow identifier
+          example: analisis_ventas
+        label:
+          type: string
+          description: Human-readable name
+          example: Análisis de Ventas
+        version:
+          type: string
+          description: Version hash or number
+          example: abc123def456
+        steps:
+          type: array
+          items:
+            type: string
+          description: Step names
+          example: [obtener_datos, procesar_datos, notificar]
+        language:
+          type: string
+          enum: [elixir, python, typescript]
+          description: Implementation language
+          example: python
+        worker_id:
+          type: string
+          description: Worker ID (Python/TypeScript workers only)
+          example: worker-1
+
+    ExecutionSummary:
+      type: object
+      properties:
+        execution_id:
+          type: string
+          example: exec_abc123
+        status:
+          type: string
+          enum: [running, completed, failed]
+        workflow:
+          type: string
+          example: Elixir.OrderWorkflow
+        events_count:
+          type: integer
+          example: 6
+
+    ExecutionStatus:
+      type: object
+      properties:
+        execution_id:
+          type: string
+          example: exec_abc123
+        state:
+          type: string
+          enum: [initializing, executing_step, completed, failed, sleeping, waiting_for_approval]
+          example: executing_step
+        progress:
+          type: string
+          description: 'completed/total format'
+          example: '2/5'
+        current_step:
+          type: string
+          nullable: true
+          example: process_payment
+        results:
+          type: object
+          description: Map of step_name → result
+        error:
+          nullable: true
+          description: Error information if failed
+
+    Event:
+      type: object
+      properties:
+        version:
+          type: integer
+          description: Monotonic version number
+          example: 1
+        type:
+          type: string
+          description: Event type identifier
+          enum:
+            - ExecutionStartedEvent
+            - ExecutionCompletedEvent
+            - ExecutionFailedEvent
+            - StepExecutedEvent
+            - StepFailedEvent
+            - DivergeTakenEvent
+            - BranchTakenEvent
+            - JumpExecutedEvent
+            - ParallelStartedEvent
+            - ParallelTaskCompletedEvent
+            - ParallelTaskFailedEvent
+            - ParallelCompletedEvent
+            - SleepStartedEvent
+            - SleepCompletedEvent
+            - WorkflowHibernatedEvent
+            - WorkflowAwakenedEvent
+            - ApprovalRequestedEvent
+            - ApprovalReceivedEvent
+            - ApprovalRejectedEvent
+            - ApprovalTimeoutEvent
+        data:
+          type: object
+          description: Type-specific event payload
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-07-09T14:15:00Z'
+
+    Worker:
+      type: object
+      properties:
+        worker_id:
+          type: string
+          example: worker-1
+        url:
+          type: string
+          description: gRPC callback URL
+          example: http://worker-host:9000
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Steps this worker can execute
+          example: [fetch_data, process_payment]
+        language:
+          type: string
+          enum: [python, typescript]
+          example: python
+        version:
+          type: string
+          example: 0.1.0
+        registered_at:
+          type: string
+          format: date-time
+          example: '2026-07-09T14:15:00Z'
+
+
