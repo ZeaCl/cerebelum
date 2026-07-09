@@ -185,22 +185,39 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
             result_data = internal_result.result
 
             cond do
-              # Check for sleep marker
+              # Check for sleep marker (deprecated, kept for backward compatibility)
               is_map(result_data) && Map.get(result_data, "__cerebelum_sleep_request__") == true ->
                 duration_ms = Map.get(result_data, "duration_ms", 0)
                 data = Map.get(result_data, "data", %{})
-                Logger.info("Detected sleep request: #{duration_ms}ms")
+                Logger.info("Detected sleep request (marker): #{duration_ms}ms")
                 {:sleep, duration_ms, data}
 
-              # Check for approval marker
+              # Check for approval marker (deprecated, kept for backward compatibility)
               is_map(result_data) && Map.get(result_data, "__cerebelum_approval_request__") == true ->
                 approval_data = %{
                   type: Map.get(result_data, "approval_type", "manual"),
                   data: Map.get(result_data, "data", %{}),
                   timeout_ms: Map.get(result_data, "timeout_ms")
                 }
-                Logger.info("Detected approval request: #{approval_data.type}")
+                Logger.info("Detected approval request (marker): #{approval_data.type}")
                 {:approval, approval_data}
+
+              # Standard Python SDK: step returns {"status": "waiting_for_approval", ...}
+              is_map(result_data) && Map.get(result_data, "status") == "waiting_for_approval" ->
+                approval_data = %{
+                  type: Map.get(result_data, "approval_type", "manual"),
+                  data: Map.get(result_data, "data", result_data),
+                  timeout_ms: Map.get(result_data, "timeout_ms")
+                }
+                Logger.info("Detected approval request (status field) for step")
+                {:approval, approval_data}
+
+              # Standard Python SDK: step returns {"status": "sleep", "duration_ms": N, ...}
+              is_map(result_data) && Map.get(result_data, "status") == "sleep" ->
+                duration_ms = Map.get(result_data, "duration_ms", 0)
+                data = Map.get(result_data, "data", %{})
+                Logger.info("Detected sleep request (status field): #{duration_ms}ms")
+                {:sleep, duration_ms, data}
 
               # Normal success
               true ->

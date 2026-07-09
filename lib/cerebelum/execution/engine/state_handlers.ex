@@ -88,6 +88,26 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
       {:error, reason} ->
         handle_step_error(data, step_name, reason)
+
+      {:approval, approval_data} when is_map(approval_data) ->
+        # Convert delegating workflow format to engine format
+        opts =
+          []
+          |> Keyword.put(:type, String.to_atom(Map.get(approval_data, "type", "manual")))
+          |> then(fn o ->
+            if timeout = Map.get(approval_data, "timeout_ms") do
+              Keyword.put(o, :timeout_ms, timeout)
+            else
+              o
+            end
+          end)
+
+        inner_data = Map.get(approval_data, "data", approval_data)
+        handle_step_success(data, step_name, {:wait_for_approval, opts, inner_data})
+
+      {:sleep, duration_ms, result} ->
+        # Convert delegating workflow format to engine format
+        handle_step_success(data, step_name, {:sleep, [milliseconds: duration_ms], result})
     end
   end
 
