@@ -37,8 +37,8 @@ defmodule Cerebelum.Execution.ResultsCache do
       iex> Cerebelum.Execution.ResultsCache.has?(cache, :step1)
       true
   """
-  @spec put(t(), atom(), term()) :: t()
-  def put(cache, step_name, result) when is_atom(step_name) do
+  @spec put(t(), atom() | String.t(), term()) :: t()
+  def put(cache, step_name, result) when is_atom(step_name) or is_binary(step_name) do
     Map.put(cache, step_name, result)
   end
 
