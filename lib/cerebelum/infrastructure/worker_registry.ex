@@ -121,11 +121,12 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @impl true
   def init(_opts) do
-    # Create ETS table for fast concurrent reads (reuse if already exists from restart)
-    table = if existing = :ets.whereis(@table_name) do
-      existing
-    else
+    # Create ETS table for fast concurrent reads
+    # If table already exists from a previous crashed instance, reuse it
+    table = try do
       :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])
+    rescue
+      ArgumentError -> :ets.whereis(@table_name)
     end
 
     # Schedule periodic health checks

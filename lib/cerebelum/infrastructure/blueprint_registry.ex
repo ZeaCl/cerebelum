@@ -81,9 +81,12 @@ defmodule Cerebelum.Infrastructure.BlueprintRegistry do
 
   @impl true
   def init(_opts) do
-    # Create ETS table for blueprint storage (if not already exists from restart)
-    unless :ets.whereis(@table_name) do
+    # Create ETS table for blueprint storage
+    # If table already exists from a previous crashed instance, reuse it
+    try do
       :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])
+    rescue
+      ArgumentError -> :ok
     end
 
     Logger.info("BlueprintRegistry started")

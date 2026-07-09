@@ -137,21 +137,19 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
 
   @impl true
   def init(_opts) do
-    # Create ETS tables for task management (skip if already exist from restart)
-    for table <- [
-      @task_queue_table,
-      @execution_worker_mapping_table,
-      @pending_polls_table,
-      @task_metadata_table,
-      @active_tasks_table
+    # Create ETS tables for task management
+    # If tables already exist from a previous crashed instance, reuse them
+    for {table, opts} <- [
+      {@task_queue_table, [:named_table, :bag, :public, read_concurrency: true]},
+      {@execution_worker_mapping_table, [:named_table, :set, :public, read_concurrency: true]},
+      {@pending_polls_table, [:named_table, :bag, :public]},
+      {@task_metadata_table, [:named_table, :set, :public, read_concurrency: true]},
+      {@active_tasks_table, [:named_table, :set, :public, read_concurrency: true]}
     ] do
-      unless :ets.whereis(table) do
-        opts = if table in [@task_queue_table, @pending_polls_table] do
-          [:named_table, :bag, :public]
-        else
-          [:named_table, :set, :public, read_concurrency: true]
-        end
+      try do
         :ets.new(table, opts)
+      rescue
+        ArgumentError -> :ok
       end
     end
 
