@@ -137,12 +137,23 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
 
   @impl true
   def init(_opts) do
-    # Create ETS tables for task management
-    :ets.new(@task_queue_table, [:named_table, :bag, :public, read_concurrency: true])
-    :ets.new(@execution_worker_mapping_table, [:named_table, :set, :public, read_concurrency: true])
-    :ets.new(@pending_polls_table, [:named_table, :bag, :public])
-    :ets.new(@task_metadata_table, [:named_table, :set, :public, read_concurrency: true])
-    :ets.new(@active_tasks_table, [:named_table, :set, :public, read_concurrency: true])
+    # Create ETS tables for task management (skip if already exist from restart)
+    for table <- [
+      @task_queue_table,
+      @execution_worker_mapping_table,
+      @pending_polls_table,
+      @task_metadata_table,
+      @active_tasks_table
+    ] do
+      unless :ets.whereis(table) do
+        opts = if table in [@task_queue_table, @pending_polls_table] do
+          [:named_table, :bag, :public]
+        else
+          [:named_table, :set, :public, read_concurrency: true]
+        end
+        :ets.new(table, opts)
+      end
+    end
 
     Logger.info("TaskRouter started")
 

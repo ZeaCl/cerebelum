@@ -121,14 +121,18 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @impl true
   def init(_opts) do
-    # Create ETS table for fast concurrent reads
-    table = :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])
-    
+    # Create ETS table for fast concurrent reads (reuse if already exists from restart)
+    table = if existing = :ets.whereis(@table_name) do
+      existing
+    else
+      :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])
+    end
+
     # Schedule periodic health checks
     schedule_health_check()
-    
+
     Logger.info("WorkerRegistry started")
-    
+
     {:ok, %{table: table}}
   end
 
