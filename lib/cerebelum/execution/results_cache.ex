@@ -58,8 +58,8 @@ defmodule Cerebelum.Execution.ResultsCache do
       iex> Cerebelum.Execution.ResultsCache.get(cache, :missing)
       :error
   """
-  @spec get(t(), atom()) :: {:ok, term()} | :error
-  def get(cache, step_name) when is_atom(step_name) do
+  @spec get(t(), atom() | String.t()) :: {:ok, term()} | :error
+  def get(cache, step_name) when is_atom(step_name) or is_binary(step_name) do
     Map.fetch(cache, step_name)
   end
 
@@ -73,8 +73,8 @@ defmodule Cerebelum.Execution.ResultsCache do
       iex> Cerebelum.Execution.ResultsCache.get!(cache, :step1)
       "value"
   """
-  @spec get!(t(), atom()) :: term()
-  def get!(cache, step_name) when is_atom(step_name) do
+  @spec get!(t(), atom() | String.t()) :: term()
+  def get!(cache, step_name) when is_atom(step_name) or is_binary(step_name) do
     Map.fetch!(cache, step_name)
   end
 
@@ -91,7 +91,7 @@ defmodule Cerebelum.Execution.ResultsCache do
       false
   """
   @spec has?(t(), atom()) :: boolean()
-  def has?(cache, step_name) when is_atom(step_name) do
+  def has?(cache, step_name) when is_atom(step_name) or is_binary(step_name) do
     Map.has_key?(cache, step_name)
   end
 

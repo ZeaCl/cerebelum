@@ -192,9 +192,10 @@ defmodule Cerebelum.Context do
       iex> context.current_step
       :validate_user
   """
-  @spec update_step(t(), atom()) :: t()
-  def update_step(%__MODULE__{} = context, step) when is_atom(step) do
-    %{context | current_step: step, updated_at: DateTime.utc_now()}
+  @spec update_step(t(), atom() | String.t()) :: t()
+  def update_step(%__MODULE__{} = context, step) when is_atom(step) or is_binary(step) do
+    step_atom = if is_binary(step), do: String.to_existing_atom(step), else: step
+    %{context | current_step: step_atom, updated_at: DateTime.utc_now()}
   end
 
   @doc """
