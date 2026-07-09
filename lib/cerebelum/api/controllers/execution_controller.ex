@@ -151,7 +151,7 @@ defmodule Cerebelum.API.ExecutionController do
             json(conn, %{
               execution_id: execution_id,
               state: state[:status] || :unknown,
-              results: state[:results] || %{},
+              results: Cerebelum.Execution.Engine.Data.json_safe_results(state[:results] || %{}),
               error: state[:error]
             })
 
