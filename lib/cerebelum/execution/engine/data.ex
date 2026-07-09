@@ -287,11 +287,42 @@ defmodule Cerebelum.Execution.Engine.Data do
         timeline_progress: "#{data.current_step_index}/#{timeline_length}",
         completed_steps: data.current_step_index,
         total_steps: timeline_length,
-        results: data.results,
+        results: json_safe_results(data.results),
         context: data.context,
         iteration: data.iteration
       },
       error_info
     )
   end
+
+  @doc """
+  Converts results map to JSON-safe format.
+
+  Tuples like `{:waiting_for_approval, data}` or `{:sleep, duration, data}`
+  are converted to maps that Jason can serialize.
+  """
+  @spec json_safe_results(map()) :: map()
+  def json_safe_results(results) when is_map(results) do
+    Map.new(results, fn {step_name, value} ->
+      {step_name, json_safe_value(value)}
+    end)
+  end
+
+  defp json_safe_value({:waiting_for_approval, data}) do
+    %{status: "waiting_for_approval", data: data}
+  end
+
+  defp json_safe_value({:sleep, duration_ms, data}) do
+    %{status: "sleep", duration_ms: duration_ms, data: data}
+  end
+
+  defp json_safe_value({:ok, value}) do
+    json_safe_value(value)
+  end
+
+  defp json_safe_value({:error, reason}) do
+    %{status: "error", reason: reason}
+  end
+
+  defp json_safe_value(value), do: value
 end
