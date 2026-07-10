@@ -1,0 +1,93 @@
+# Cerebelum
+
+> Deterministic workflow orchestration engine. Elixir/OTP, event sourcing, REST + gRPC, SDKs Python/TypeScript.
+
+## Docs
+
+- [index.md](docs/index.md) — Hub persona-based (dev, ops, admin, architect)
+- [getting-started.md](docs/getting-started.md) — Quickstart por modo (on-prem / cloud)
+- [cli.md](docs/cli.md) — 16 comandos `cerebelum`
+- [configuration.md](docs/configuration.md) — Env vars, database, gRPC, rate limiting
+- [deployment.md](docs/deployment.md) — Docker, ZEA Platform, self-hosted
+- [OPENAPI_SPEC.yaml](docs/OPENAPI_SPEC.yaml) — OpenAPI 3.0.3 specification
+
+### Workflow DSL
+
+- [overview.md](docs/workflow-dsl/overview.md) — DSL concepts, pipes, step dependency injection
+- [timeline.md](docs/workflow-dsl/timeline.md) — Linear step sequences
+- [branch.md](docs/workflow-dsl/branch.md) — Conditional routing based on results
+- [diverge.md](docs/workflow-dsl/diverge.md) — Error handling, retry, pattern matching
+- [cycles.md](docs/workflow-dsl/cycles.md) — back_to, skip_to, continue
+
+### API
+
+- [rest.md](docs/api/rest.md) — Auth headers, pagination, rate limits, response format
+- [executions.md](docs/api/executions.md) — CRUD executions, approve, events
+- [workflows.md](docs/api/workflows.md) — List, deploy, source code
+- [workers.md](docs/api/workers.md) — Register, list, dev certs
+- [events.md](docs/api/events.md) — Event sourcing audit trail
+
+### SDKs
+
+- [overview.md](docs/sdk/overview.md) — Comparison table (Elixir, Python, TypeScript)
+- [python.md](docs/sdk/python.md) — `pip install cerebelum-sdk`
+- [typescript.md](docs/sdk/typescript.md) — `npm i @zea.cl/cerebelum`
+
+### Guides
+
+- [error-handling.md](docs/guides/error-handling.md) — Diverge, retries, DLQ patterns
+- [event-sourcing.md](docs/guides/event-sourcing.md) — Event store, replay, time-travel debugging
+- [long-running-workflows.md](docs/guides/long-running-workflows.md) — Sleep, hibernation, resurrection
+- [thalamus-integration.md](docs/guides/thalamus-integration.md) — JWT auth, agent tokens, step authorization
+
+### Architecture
+
+- [overview.md](docs/architecture/overview.md) — Clean Architecture, supervision tree, event sourcing
+
+### Tutorials
+
+- [01-first-elixir-workflow.md](docs/tutorials/01-first-elixir-workflow.md)
+- [02-first-python-workflow.md](docs/tutorials/02-first-python-workflow.md)
+- [03-parallel-execution.md](docs/tutorials/03-parallel-execution.md)
+- [04-error-handling.md](docs/tutorials/04-error-handling.md)
+
+## Source
+
+- [lib/cerebelum.ex](lib/cerebelum.ex) — Public API
+- [lib/cerebelum/workflow.ex](lib/cerebelum/workflow.ex) — Workflow behaviour + DSL
+- [lib/cerebelum/workflow/dsl.ex](lib/cerebelum/workflow/dsl.ex) — DSL orchestrator
+- [lib/cerebelum/events.ex](lib/cerebelum/events.ex) — 18 domain event types
+- [lib/cerebelum/execution/engine.ex](lib/cerebelum/execution/engine.ex) — gen_statem engine
+- [lib/cerebelum/execution/engine/state_handlers.ex](lib/cerebelum/execution/engine/state_handlers.ex) — State machine handlers
+- [lib/cerebelum/execution/step_executor.ex](lib/cerebelum/execution/step_executor.ex) — Step execution + dependency injection
+- [lib/cerebelum/execution/approval.ex](lib/cerebelum/execution/approval.ex) — HITL approval API
+- [lib/cerebelum/execution/resurrector.ex](lib/cerebelum/execution/resurrector.ex) — Boot-time resurrection
+- [lib/cerebelum/event_store.ex](lib/cerebelum/event_store.ex) — Append-only event log (PostgreSQL)
+- [lib/cerebelum/api/router.ex](lib/cerebelum/api/router.ex) — REST API routes
+- [lib/cerebelum/api/controllers/execution_controller.ex](lib/cerebelum/api/controllers/execution_controller.ex) — Executions REST controller
+- [lib/cerebelum/api/controllers/workflow_controller.ex](lib/cerebelum/api/controllers/workflow_controller.ex) — Workflows REST controller
+- [lib/cerebelum/api/plugs/jwt_auth.ex](lib/cerebelum/api/plugs/jwt_auth.ex) — JWT auth plug
+- [lib/cerebelum/infrastructure/worker_service_server.ex](lib/cerebelum/infrastructure/worker_service_server.ex) — gRPC server for workers
+- [lib/cerebelum/infrastructure/task_router.ex](lib/cerebelum/infrastructure/task_router.ex) — Pull-based task distribution
+- [lib/cerebelum/infrastructure/worker_registry.ex](lib/cerebelum/infrastructure/worker_registry.ex) — Worker pool + health checks
+- [lib/cerebelum/infrastructure/blueprint_registry.ex](lib/cerebelum/infrastructure/blueprint_registry.ex) — In-memory blueprint cache
+- [lib/cerebelum/infrastructure/dlq.ex](lib/cerebelum/infrastructure/dlq.ex) — Dead Letter Queue
+- [lib/cerebelum/workflow/delegating_workflow.ex](lib/cerebelum/workflow/delegating_workflow.ex) — Bridge to distributed workers
+
+## Key Concepts
+
+- **Workflow DSL**: Macros (`workflow do timeline do ... end`) compile to metadata consumed by Engine
+- **Event Sourcing**: 18 event types, append-only PostgreSQL log, time-travel debugging
+- **Execution Engine**: gen_statem per workflow, states: initializing → executing_step → completed/failed/sleeping/waiting_for_approval
+- **HITL**: Human-in-the-loop via `wait_for_approval()`, approve/reject via REST API
+- **Workers**: Python/TypeScript via gRPC (mTLS), pull-based task dispatch (TaskRouter)
+- **Thalamus**: OAuth2 identity provider for JWT auth + agent token step authorization
+
+## Notes
+
+- Engine is `mix test && mix format && mix credo`
+- Deploy: push main → GitHub Actions → `ghcr.io/zeacl/cerebelum:latest` → Watchtower on EC2
+- Production health: `curl https://cerebelum.zea.cl/health`
+- Board: https://github.com/orgs/ZeaCl/projects/6
+- Issues: https://github.com/ZeaCl/cerebelum/issues
+- SDKs: `pip install cerebelum-sdk` / `npm i @zea.cl/cerebelum`
