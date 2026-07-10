@@ -276,7 +276,6 @@ defmodule Cerebelum.Execution.Resurrector do
         {:ok, execution_id}
 
       {:error, :already_running} ->
-        # Already running - this is fine, just skip
         Logger.debug("Execution #{execution_id} already running, skipping")
         {:ok, execution_id}
 
@@ -296,6 +295,10 @@ defmodule Cerebelum.Execution.Resurrector do
 
         {:error, {execution_id, reason}}
     end
+  rescue
+    e ->
+      Logger.warning("Resurrection crashed for #{execution_id}: #{inspect(e)}")
+      {:error, {execution_id, e}}
   end
 
   # Counts success and failure results
