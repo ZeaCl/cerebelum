@@ -630,7 +630,11 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
     Cerebelum.EventStore.append(data.context.execution_id, event, version)
 
-    # Clear approval data
+    # Store the approval response as the step result so the step
+    # can access it when re-executed (e.g., validation of user input)
+    data = Data.store_result(data, data.approval_step_name, {:ok, approval_response})
+
+    # Clear approval metadata
     data = %{data |
       approval_type: nil,
       approval_data: nil,
@@ -639,22 +643,10 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
       approval_started_at: nil
     }
 
-    # Advance to next step
-    data = Data.advance_step(data)
-
-    # Reply to caller
+    # Re-execute the SAME step with approval data (don't advance yet)
+    # The step function will receive the approval_response as a previous result
     reply_action = {:reply, from, {:ok, :approved}}
-
-    # Check if finished
-    if Data.finished?(data) do
-      Logger.info("Execution completed after approval: #{data.context.execution_id}")
-      {:next_state, :completed, data, [reply_action]}
-    else
-      # Continue to next step
-      next_step = Data.current_step_name(data)
-      data = Data.update_context_step(data, next_step)
-      {:next_state, :executing_step, data, [reply_action, {:next_event, :internal, :execute}]}
-    end
+    {:next_state, :executing_step, data, [reply_action, {:next_event, :internal, :execute}]}
   end
 
   def waiting_for_approval({:call, from}, {:reject, rejection_reason}, data) do
