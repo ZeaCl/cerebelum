@@ -181,6 +181,7 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
         # Convert result to format expected by WorkflowDelegatingWorkflow
         workflow_result = case internal_result.status do
           :success ->
+            Logger.info("Task result: SUCCESS status, result=#{inspect(internal_result.result)}")
             # Check if result contains a sleep/approval marker (workaround for protobuf)
             result_data = internal_result.result
 
@@ -248,6 +249,7 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
           :approval ->
             # Extract approval request from protobuf (when protobuf is regenerated)
             approval_req = result.approval_request
+            Logger.info("Task result: APPROVAL status, approval_req=#{inspect(approval_req)}")
             if approval_req do
               approval_data = %{
                 type: approval_req.approval_type || "manual",
