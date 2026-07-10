@@ -75,3 +75,62 @@ Clean Architecture: Domain → Application → Infrastructure → Presentation.
 ```bash
 curl https://cerebelum.zea.cl/health
 ```
+
+## HITL — Human-in-the-Loop
+
+Workflows pueden pausar y esperar aprobación humana usando `wait_for_approval()`.
+
+### Flujo completo
+
+```
+Python step → wait_for_approval() → ApprovalMarker exception
+  → Worker SDK lo atrapa → envía TaskStatus.APPROVAL via gRPC
+  → Engine (worker_service_server.ex) → {:approval, data}
+  → Engine (state_handlers.ex) → :waiting_for_approval state
+  → POST /executions/:id/approve → Engine re-ejecuta el step con datos
+  → Step recibe inputs → valida → OK → avanza
+```
+
+### Archivos clave
+
+| Archivo | Rol |
+|---|---|
+| `lib/cerebelum/infrastructure/worker_service_server.ex` | Detecta APPROVAL/SLEEP del worker |
+| `lib/cerebelum/execution/engine/state_handlers.ex` | Maneja `{:approval, data}`, transiciona a `:waiting_for_approval`, re-ejecuta post-approve |
+| `lib/cerebelum/execution/approval.ex` | API pública: `approve/2`, `approve_by_id/2` |
+| `lib/cerebelum/api/controllers/execution_controller.ex` | Endpoint `POST /executions/:id/approve` |
+| `lib/cerebelum/execution/engine/data.ex` | `json_safe_results/1`, `build_step_inputs` |
+| `lib/cerebelum/execution/results_cache.ex` | Acepta atoms y strings en step names |
+| `lib/cerebelum/context.ex` | `update_step/2` acepta atoms y strings |
+
+### SDK (cerebelum-python)
+
+| Archivo | Rol |
+|---|---|
+| `cerebelum/dsl/async_helpers.py` | `wait_for_approval()` — lanza `ApprovalMarker` |
+| `cerebelum/dsl/decorators.py` | `@step` wrapper — NO debe tragar `WorkflowMarker` |
+| `cerebelum/dsl/workflow_markers.py` | `ApprovalMarker`, `SleepMarker` |
+| `cerebelum/distributed.py` | Worker atrapa markers → envía APPROVAL/SLEEP vía gRPC |
+
+### Debugging
+
+- **"Los steps se completan instantáneamente"**: probablemente el `@step` decorator se traga la excepción. Verificar SDK >= 0.3.1.
+- **"Step recibe unexpected keyword argument 'previous_results'"**: agregar `**kwargs` al final de cada step function.
+- **"El approve no le pasa datos al step"**: verificar que `build_step_inputs` en `state_handlers.ex` recibe `Map.get(data.results, step_name)` con valor `{:ok, %{...}}`.
+- **"El worker no se conecta"**: verificar `CEREBELUM_CORE_URL`. En Docker compose local es `cerebelum:50051` (red interna).
+- **Logs no aparecen en el container**: `docker compose build` cachela capas. Borrar imágenes (`docker rmi -f zea-cerebelum`) y usar `docker build --no-cache` directo desde el directorio del repo.
+- **Dos workers compiten por las tareas**: matar workers viejos (`docker stop`, `pkill`). El TaskRouter usa sticky routing.
+
+### Entorno local
+
+```bash
+# Build directo (más confiable que docker compose build)
+cd cerebelum && docker build --no-cache -t zea-cerebelum -f Dockerfile --target runtime .
+cd zea && docker compose -f docker-compose.local.yml up -d --no-build cerebelum
+
+# SDK local
+cd cerebelum-python && pip install -e .
+
+# Limpiar todo
+cd zea && docker compose -f docker-compose.local.yml down -v
+```
