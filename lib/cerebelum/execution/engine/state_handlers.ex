@@ -67,7 +67,7 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
         # Distributed workflow — delegate to worker via DelegatingWorkflow
         Logger.info("Delegating step '#{step_name}' to worker")
         args = StepExecutor.build_arguments(data.context, data.current_step_index, data.workflow_metadata.timeline, data.results)
-        step_inputs = build_step_inputs(args)
+        step_inputs = build_step_inputs(args, Map.get(data.results, step_name))
         Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
 
       :local ->
@@ -171,11 +171,19 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
   ## Private Helpers
 
-  defp build_step_inputs(args) do
+  defp build_step_inputs(args, current_result \\ nil) do
     # args = [context | previous_results]
     # Convert to a map for the worker
     [_context | prev_results] = args
-    %{previous_results: prev_results}
+    inputs = %{previous_results: prev_results}
+
+    # Include current step's own result so HITL steps receive approval data on re-execution
+    case current_result do
+      {:ok, approval_data} when is_map(approval_data) ->
+        Map.put(inputs, :inputs, approval_data)
+      _ ->
+        inputs
+    end
   end
 
   defp handle_step_success(data, step_name, step_result) do

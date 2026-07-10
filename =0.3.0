@@ -1,8 +1,0 @@
-Collecting cerebelum-sdk
-  Using cached cerebelum_sdk-0.3.0-py3-none-any.whl.metadata (1.7 kB)
-Requirement already satisfied: grpcio>=1.60 in /opt/homebrew/lib/python3.14/site-packages (from cerebelum-sdk) (1.81.0)
-Requirement already satisfied: protobuf>=4.25 in /opt/homebrew/lib/python3.14/site-packages (from cerebelum-sdk) (6.33.6)
-Requirement already satisfied: typing-extensions~=4.12 in /opt/homebrew/lib/python3.14/site-packages (from grpcio>=1.60->cerebelum-sdk) (4.15.0)
-Using cached cerebelum_sdk-0.3.0-py3-none-any.whl (58 kB)
-Installing collected packages: cerebelum-sdk
-Successfully installed cerebelum-sdk-0.3.0
