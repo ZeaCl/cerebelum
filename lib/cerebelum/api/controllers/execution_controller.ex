@@ -226,10 +226,7 @@ defmodule Cerebelum.API.ExecutionController do
   POST /api/v1/executions/:id/approve
   """
   def approve(conn, %{"id" => execution_id} = params) do
-    approval_response = %{
-      approved_by: params["approved_by"],
-      notes: params["notes"]
-    }
+    approval_response = Map.drop(params, ["id"])
 
     case Cerebelum.Execution.Approval.approve_by_id(execution_id, approval_response) do
       {:ok, :approved} ->

@@ -638,8 +638,7 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
     Cerebelum.EventStore.append(data.context.execution_id, event, version)
 
-    # Store the approval response as the step result so the step
-    # can access it when re-executed (e.g., validation of user input)
+    # Store approval response as {:ok, data} in results
     data = Data.store_result(data, data.approval_step_name, {:ok, approval_response})
 
     # Clear approval metadata
