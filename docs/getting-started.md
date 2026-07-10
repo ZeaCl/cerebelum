@@ -1,34 +1,85 @@
 # Getting Started
 
-Cerebelum can be used in two modes: **on-premise** (Elixir, zero infra) and **cloud** (ZEA Platform, multi-tenant).
+Cerebelum can be used in different ways depending on what you're building. Pick your path:
 
 ---
 
-## Cloud Mode (Recommended)
+## 🟦 Dev: Build Workflows (On-Premise)
 
-3 comandos para empezar:
+You want to define and run workflows in your Elixir application. No cloud, no auth.
 
-### 1. Create project
+### Quickest path
 
-```bash
-npx @zea.cl/create-cerebelum my-project
-cd my-project
+#### 1. Install
+
+```elixir
+# mix.exs
+def deps do
+  [{:cerebelum, "~> 0.1.0"}]
+end
 ```
 
-Esto crea un proyecto con `workflow.py` listo para ejecutar.
+```bash
+mix deps.get
+```
 
-### 2. Run
+#### 2. Define your first workflow
+
+```elixir
+defmodule MyApp.HelloWorkflow do
+  use Cerebelum.Workflow
+
+  workflow do
+    timeline do
+      greet() |> personalize() |> deliver()
+    end
+  end
+
+  def greet(ctx), do: {:ok, "Hello"}
+  def personalize(_ctx, {:ok, greeting}), do: {:ok, "#{greeting}, #{ctx.inputs[:name]}!"}
+  def deliver(_ctx, _greet, {:ok, message}), do: {:ok, %{sent: true, message: message}}
+end
+```
+
+#### 3. Execute
+
+```elixir
+{:ok, exec} = Cerebelum.execute_workflow(MyApp.HelloWorkflow, %{name: "World"})
+
+{:ok, status} = Cerebelum.get_execution_status(exec.id)
+# => %{state: :completed, results: %{deliver: %{sent: true, message: "Hello, World!"}}}
+```
+
+#### 4. Dive deeper
+
+- [Workflow DSL Overview](workflow-dsl/overview.md) — All DSL features
+- [Timeline](workflow-dsl/timeline.md) — Step sequences
+- [Branch & Diverge](workflow-dsl/branch.md) — Conditional logic + error handling
+- [Tutorial: First Elixir Workflow](tutorials/01-first-elixir-workflow.md)
+
+---
+
+## ☁️ Dev: Build Workflows (Cloud / ZEA Platform)
+
+You want to run workflows in the managed cloud platform using Python or TypeScript.
+
+### Quickest path
 
 ```bash
+# 1. Create a project
+npx @zea.cl/create-cerebelum my-project
+cd my-project
+
+# 2. Run the template workflow
 cerebelum run workflow.py
 ```
 
-El CLI hace todo automático:
-- ✅ Login (OAuth2 vía Thalamus)
-- ✅ Certs (mTLS generados por el engine)
-- ✅ Deploy (blueprint al cloud)
-- ✅ Worker (`python -m cerebelum.worker`)
-- ✅ Ejecución + logs en vivo
+The CLI resolves everything automatically:
+- ✅ Login (OAuth2 via Thalamus)
+- ✅ mTLS certs
+- ✅ Deploy blueprint
+- ✅ Start worker
+- ✅ Execute + live logs
 
 ```bash
 🧠 Cerebelum Run
@@ -48,18 +99,7 @@ El CLI hace todo automático:
   ⏱️ 7.4s
 ```
 
-### 3. Check status
-
-```bash
-cerebelum status
-cerebelum logs
-```
-
----
-
-## Write Your Own Workflow
-
-Edit `workflow.py`:
+### Write your own
 
 ```python
 from cerebelum import step, workflow
@@ -78,64 +118,133 @@ async def procesar(context, obtener_datos=None, **kwargs):
 @workflow
 def mi_workflow(wf):
     wf.timeline(obtener_datos >> procesar)
-
-import asyncio
-async def main():
-    result = await mi_workflow.execute({})
-    print(f"Status: {result.status}")
-
-asyncio.run(main())
 ```
 
 ```bash
 cerebelum run workflow.py
 ```
 
----
+### Dive deeper
 
-## On-Premise Mode
-
-Run the engine locally. No auth, no cloud, Elixir-native.
-
-### 1. Install
-
-```elixir
-# mix.exs
-def deps do
-  [{:cerebelum, "~> 0.1.0"}]
-end
-```
-
-### 2. Define a workflow
-
-```elixir
-defmodule MyApp.OrderWorkflow do
-  use Cerebelum.Workflow
-
-  workflow do
-    timeline do
-      validate() |> process() |> notify()
-    end
-  end
-
-  def validate(ctx), do: {:ok, ctx.inputs[:order]}
-  def process(_ctx, order), do: {:ok, Map.put(order, :status, :done)}
-  def notify(_ctx, _order, result), do: {:ok, %{sent: true}}
-end
-```
-
-### 3. Execute
-
-```elixir
-{:ok, exec} = Cerebelum.execute_workflow(OrderWorkflow, %{order: %{id: "ORD-1"}})
-```
+- [Python SDK](sdk/python.md) — Full guide
+- [TypeScript SDK](sdk/typescript.md) — Full guide
+- [CLI Reference](cli.md) — All `cerebelum` commands
+- [REST API](api/rest.md) — Direct API access
+- [Tutorial: First Python Workflow](tutorials/02-first-python-workflow.md)
 
 ---
 
-## Next Steps
+## 🟢 DevOps: Deploy Cerebelum
 
-| Mode | Guide |
-|---|---|
-| Cloud | [CLI Reference](cli.md), [Python SDK](sdk/python.md), [REST API](api/rest.md) |
-| On-prem | [Workflow DSL](workflow-dsl.md), [Configuration](configuration.md) |
-| Both | [Installation](installation.md), [Error Handling](error-handling.md) |
+You want to run Cerebelum in your own infrastructure or as part of ZEA Platform.
+
+### Quickest path
+
+#### 1. Docker (standalone)
+
+```bash
+docker pull ghcr.io/zeacl/cerebelum:latest
+docker run -d \
+  -e DATABASE_URL=ecto://user:pass@host:5432/cerebelum_prod \
+  -e SECRET_KEY_BASE=$(mix phx.gen.secret) \
+  -e THALAMUS_URL=http://thalamus:4000 \
+  -p 4001:4001 \
+  -p 50051:50051 \
+  cerebelum
+```
+
+#### 2. ZEA Platform (docker compose)
+
+```yaml
+# Part of ZeaCl/zea docker-compose.prod.yml
+cerebelum:
+  image: ghcr.io/zeacl/cerebelum:latest
+  environment:
+    DATABASE_URL: ecto://cerebelum_user:${CEREBELUM_DB_PASSWORD}@postgres:5432/cerebelum_prod
+    MIX_ENV: prod
+    PHX_HOST: cerebelum.zea.cl
+    PORT: 4001
+    SECRET_KEY_BASE: ${SECRET_KEY_BASE_CEREBELUM}
+    THALAMUS_URL: http://thalamus:4000
+```
+
+#### 3. Elixir Release (from source)
+
+```bash
+MIX_ENV=prod mix release
+_build/prod/rel/cerebelum/bin/cerebelum start
+```
+
+#### 4. Dive deeper
+
+- [Deployment Guide](deployment.md) — Full production setup
+- [Configuration](configuration.md) — All env vars and settings
+- [Architecture Overview](architecture/overview.md) — System design
+
+---
+
+## 🟣 App Dev: Integrate via REST API
+
+You have an application that needs to trigger or monitor Cerebelum workflows via HTTP.
+
+### Quickest path
+
+#### 1. Authenticate
+
+All endpoints (except `/health` and workflow discovery) require a JWT from Thalamus:
+
+```bash
+# Get a token (Client Credentials grant)
+curl -X POST https://auth.zea.cl/oauth/token \
+  -H "Authorization: Basic $(echo -n 'client_id:client_secret' | base64)" \
+  -d "grant_type=client_credentials&scope=workflows:read+workflows:write"
+
+# Use the token
+export TOKEN="at_xxx..."
+```
+
+#### 2. Execute a workflow
+
+```bash
+curl -X POST https://cerebelum.zea.cl/api/v1/executions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow": "analisis_ventas", "input": {"periodo": "Q4-2025"}}'
+```
+
+#### 3. Check status
+
+```bash
+curl https://cerebelum.zea.cl/api/v1/executions/exec_abc123 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### 4. Dive deeper
+
+- [REST API Overview](api/rest.md) — Auth, pagination, rate limits
+- [Executions API](api/executions.md) — All execution endpoints
+- [Workflows API](api/workflows.md) — Deploy and manage workflows
+
+---
+
+## 🟡 Architect: Understand the System
+
+You want to understand how Cerebelum is built, its design decisions, and how to extend it.
+
+### Quickest path
+
+1. [Architecture Overview](architecture/overview.md) — Clean Architecture, 4 layers, supervision tree, 18 event types
+2. [Workflow DSL Overview](workflow-dsl/overview.md) — How the DSL compiles to metadata
+3. [Event Sourcing](guides/event-sourcing.md) — Append-only log, replay, time-travel debugging
+4. [Thalamus Integration](guides/thalamus-integration.md) — JWT validation, agent tokens, step authorization
+5. [AGENTS.md](../AGENTS.md) — Coding agent instructions
+
+---
+
+## Environment Reference
+
+| Environment | URL | Auth |
+|---|---|---|
+| ZEA Cloud (production) | `https://cerebelum.zea.cl` | JWT via Thalamus OAuth2 |
+| Local development (on-prem) | Use as Elixir library | None (trusted env) |
+| Docker standalone | `http://localhost:4001` | Optional JWT |
