@@ -178,6 +178,7 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # args = [context | previous_results]
     # Convert to a map for the worker, with previous results keyed by step name
     [_context | prev_results] = args
+    Logger.info("build_step_inputs: prev_results=#{inspect(prev_results)}")
 
     # Map previous results to step names from the timeline
     # prev_results[i] corresponds to step timeline[i]
