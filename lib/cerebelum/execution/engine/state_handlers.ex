@@ -179,7 +179,17 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Map previous results to step names from the timeline
     # prev_results[i] corresponds to step timeline[i]
     prev_steps = timeline |> Enum.take(current_step_index) |> Enum.map(& &1.name)
-    named_results = Enum.zip(prev_steps, prev_results) |> Enum.into(%{})
+    named_results =
+      Enum.zip(prev_steps, prev_results)
+      |> Enum.into(%{})
+      # Unwrap @step decorator's {"ok": result} wrapper from Python SDK
+      |> Map.new(fn {name, result} ->
+        unwrapped = case result do
+          %{"ok" => inner} when is_map(inner) -> inner
+          _ -> result
+        end
+        {name, unwrapped}
+      end)
 
     # Merge named results with previous_results for backward compatibility
     inputs = Map.merge(%{previous_results: prev_results}, named_results)
@@ -187,7 +197,12 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Include current step's own result so HITL steps receive approval data on re-execution
     case current_result do
       {:ok, approval_data} when is_map(approval_data) ->
-        Map.put(inputs, :inputs, approval_data)
+        # Also unwrap the ok wrapper from approval data
+        unwrapped_approval = case approval_data do
+          %{"ok" => inner} when is_map(inner) -> inner
+          _ -> approval_data
+        end
+        Map.put(inputs, :inputs, unwrapped_approval)
       _ ->
         inputs
     end
