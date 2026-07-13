@@ -68,8 +68,9 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
         Logger.info("Delegating step '#{step_name}' to worker")
         args = StepExecutor.build_arguments(data.context, data.current_step_index, data.workflow_metadata.timeline, data.results)
         # For delegated workflows, the real timeline is in data.blueprint.definition.timeline
-        timeline = get_in(data.blueprint, [:definition, :timeline]) || data.workflow_metadata.timeline || []
-        Logger.info("build_step_inputs: blueprint=#{inspect(data.blueprint)}")
+        # Extract step names from blueprint timeline (maps → strings)
+        timeline = (get_in(data.blueprint, [:definition, :timeline]) || [])
+          |> Enum.map(fn %{name: n} -> n; n when is_binary(n) -> n; n -> n end)
         step_inputs = build_step_inputs(args, timeline, data.current_step_index, Map.get(data.results, step_name))
         Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
 
@@ -178,7 +179,6 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # args = [context | previous_results]
     # Convert to a map for the worker, with previous results keyed by step name
     [_context | prev_results] = args
-    Logger.info("build_step_inputs: prev_results=#{inspect(prev_results)}")
 
     # Map previous results to step names from the timeline
     # prev_results[i] corresponds to step timeline[i]
@@ -198,7 +198,6 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Merge named results with previous_results for backward compatibility
     inputs = Map.merge(%{previous_results: prev_results}, named_results)
 
-    Logger.info("build_step_inputs: step_idx=#{current_step_index}, prev_steps=#{inspect(prev_steps)}, named_keys=#{inspect(Map.keys(named_results))}, input_keys=#{inspect(Map.keys(inputs))}")
 
     # Include current step's own result so HITL steps receive approval data on re-execution
     case current_result do
