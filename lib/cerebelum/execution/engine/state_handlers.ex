@@ -194,6 +194,8 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Merge named results with previous_results for backward compatibility
     inputs = Map.merge(%{previous_results: prev_results}, named_results)
 
+    Logger.info("build_step_inputs: step_idx=#{current_step_index}, prev_steps=#{inspect(prev_steps)}, named_keys=#{inspect(Map.keys(named_results))}, input_keys=#{inspect(Map.keys(inputs))}")
+
     # Include current step's own result so HITL steps receive approval data on re-execution
     case current_result do
       {:ok, approval_data} when is_map(approval_data) ->
