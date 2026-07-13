@@ -2,6 +2,11 @@
 
 > Para cualquier agente de IA que tome la posta. **El board es la única fuente de verdad.**
 > Este archivo no cambia — el estado del proyecto vive en el board, no acá.
+>
+> 📝 **Memoria persistente**: Leer `.wiki/log.md` al iniciar una sesión para conocer el
+> historial reciente. Al terminar una feature o fix, escribir una entrada en `.wiki/log.md`
+> con timestamp, tipo (feat/fix/docs/infra), issue #, descripción breve y archivos tocados.
+> Usar `.wiki/rules.md` para consultar patrones y convenciones antes de implementar.
 
 ## Cerebelum
 
