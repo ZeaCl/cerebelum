@@ -356,7 +356,7 @@ defmodule Cerebelum.EventStore do
             LIMIT 1
           )", e.execution_id),
           workflow_name: fragment("(
-            SELECT event_data->>'workflow_module'
+            SELECT COALESCE(event_data->>'blueprint_name', event_data->>'workflow_module')
             FROM events
             WHERE execution_id = ? AND event_type = 'ExecutionStartedEvent'
             LIMIT 1
@@ -370,7 +370,7 @@ defmodule Cerebelum.EventStore do
       |> where([e], fragment("EXISTS (
         SELECT 1 FROM events
         WHERE execution_id = ? AND event_type = 'ExecutionStartedEvent'
-        AND event_data->>'workflow_module' = ?
+        AND COALESCE(event_data->>'blueprint_name', event_data->>'workflow_module') = ?
       )", e.execution_id, ^workflow_name))
     else
       base_query

@@ -313,7 +313,7 @@ defmodule Cerebelum.API.ExecutionController do
     %{
       execution_id: exec_id,
       status: status,
-      workflow: started && get_in(started.event_data, ["workflow_module"]),
+      workflow: started && (get_in(started.event_data, ["blueprint_name"]) || get_in(started.event_data, ["workflow_module"])),
       events_count: length(events)
     }
   end
