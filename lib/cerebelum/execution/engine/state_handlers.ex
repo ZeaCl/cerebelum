@@ -66,11 +66,11 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
       :remote ->
         # Distributed workflow — delegate to worker via DelegatingWorkflow
         Logger.info("Delegating step '#{step_name}' to worker")
-        args = StepExecutor.build_arguments(data.context, data.current_step_index, data.workflow_metadata.timeline, data.results)
         # For delegated workflows, the real timeline is in data.blueprint.definition.timeline
         # Extract step names from blueprint timeline (maps → strings)
         timeline = (get_in(data.blueprint, [:definition, :timeline]) || [])
           |> Enum.map(fn %{name: n} -> n; n when is_binary(n) -> n; n -> n end)
+        args = StepExecutor.build_arguments(data.context, data.current_step_index, timeline, data.results)
         step_inputs = build_step_inputs(args, timeline, data.current_step_index, Map.get(data.results, step_name))
         Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
 
