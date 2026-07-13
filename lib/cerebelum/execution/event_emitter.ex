@@ -59,7 +59,8 @@ defmodule Cerebelum.Execution.EventEmitter do
         version,
         correlation_id: data.context.correlation_id,
         tags: data.context.tags,
-        workflow_version: data.workflow_metadata.version
+        workflow_version: data.workflow_metadata.version,
+        blueprint_name: data.blueprint_name
       )
 
       case EventStore.append_sync(data.context.execution_id, event, version) do

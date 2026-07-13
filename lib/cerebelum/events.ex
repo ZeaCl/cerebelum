@@ -56,7 +56,8 @@ defmodule Cerebelum.Events do
             correlation_id: String.t() | nil,
             tags: [String.t()],
             timestamp: DateTime.t(),
-            version: non_neg_integer()
+            version: non_neg_integer(),
+            blueprint_name: String.t() | nil
           }
 
     defstruct [
@@ -68,7 +69,8 @@ defmodule Cerebelum.Events do
       :correlation_id,
       :tags,
       :timestamp,
-      :version
+      :version,
+      :blueprint_name
     ]
 
     @doc """
@@ -91,7 +93,8 @@ defmodule Cerebelum.Events do
         correlation_id: Keyword.get(opts, :correlation_id),
         tags: Keyword.get(opts, :tags, []),
         timestamp: DateTime.utc_now(),
-        version: version
+        version: version,
+        blueprint_name: Keyword.get(opts, :blueprint_name)
       }
     end
 
