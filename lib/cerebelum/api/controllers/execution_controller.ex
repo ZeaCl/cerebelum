@@ -245,11 +245,16 @@ defmodule Cerebelum.API.ExecutionController do
   # Uses WorkflowDelegatingWorkflow + Engine (same path as gRPC execute_workflow).
   defp execute_blueprint(workflow_name, inputs) do
     {:ok, blueprint} = BlueprintRegistry.get_blueprint(workflow_name)
-    steps = blueprint[:steps] || []
+    # Blueprint from gRPC worker stores steps under definition.timeline,
+    # not at the top-level :steps key.
+    steps = get_in(blueprint, [:definition, :timeline]) || []
 
     # Build blueprint definition in the format WorkflowDelegatingWorkflow expects
     definition = %{
-      timeline: Enum.map(steps, fn name -> %{name: name, depends_on: []} end),
+      timeline: Enum.map(steps, fn
+        %{name: name} -> %{name: name, depends_on: []}
+        name when is_binary(name) -> %{name: name, depends_on: []}
+      end),
       diverge_rules: [],
       branch_rules: [],
       inputs: %{}
