@@ -36,11 +36,13 @@ defmodule Cerebelum.API.ExecutionController do
   """
   def index(conn, params) do
     status_filter = params["status"]
+    workflow_filter = params["workflow"]
     org_id = conn.assigns[:organization_id]
 
     {:ok, execution_ids, total} =
       EventStore.list_executions(
         status: status_filter && String.to_atom(status_filter),
+        workflow_name: workflow_filter,
         limit: String.to_integer(params["limit"] || "50"),
         offset: String.to_integer(params["offset"] || "0")
       )
@@ -60,7 +62,7 @@ defmodule Cerebelum.API.ExecutionController do
       end)
       |> Enum.reject(&is_nil/1)
 
-    json(conn, %{executions: executions, total: length(executions)})
+    json(conn, %{executions: executions, total: total})
   end
 
   @doc """
