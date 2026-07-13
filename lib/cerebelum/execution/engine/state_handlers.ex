@@ -67,7 +67,7 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
         # Distributed workflow — delegate to worker via DelegatingWorkflow
         Logger.info("Delegating step '#{step_name}' to worker")
         args = StepExecutor.build_arguments(data.context, data.current_step_index, data.workflow_metadata.timeline, data.results)
-        step_inputs = build_step_inputs(args, Map.get(data.results, step_name))
+        step_inputs = build_step_inputs(args, data.workflow_metadata.timeline, data.current_step_index, Map.get(data.results, step_name))
         Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
 
       :local ->
@@ -171,11 +171,18 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
   ## Private Helpers
 
-  defp build_step_inputs(args, current_result \\ nil) do
+  defp build_step_inputs(args, timeline, current_step_index, current_result \\ nil) do
     # args = [context | previous_results]
-    # Convert to a map for the worker
+    # Convert to a map for the worker, with previous results keyed by step name
     [_context | prev_results] = args
-    inputs = %{previous_results: prev_results}
+
+    # Map previous results to step names from the timeline
+    # prev_results[i] corresponds to step timeline[i]
+    prev_steps = timeline |> Enum.take(current_step_index) |> Enum.map(& &1.name)
+    named_results = Enum.zip(prev_steps, prev_results) |> Enum.into(%{})
+
+    # Merge named results with previous_results for backward compatibility
+    inputs = Map.merge(%{previous_results: prev_results}, named_results)
 
     # Include current step's own result so HITL steps receive approval data on re-execution
     case current_result do
