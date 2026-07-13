@@ -182,7 +182,7 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
     # Map previous results to step names from the timeline
     # prev_results[i] corresponds to step timeline[i]
-    prev_steps = timeline |> Enum.take(current_step_index) |> Enum.map(& &1.name)
+    prev_steps = timeline |> Enum.take(current_step_index)
     named_results =
       Enum.zip(prev_steps, prev_results)
       |> Enum.into(%{})
