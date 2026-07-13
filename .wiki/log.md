@@ -1,7 +1,7 @@
 # Log
 
 ## [2026-07-13] fix | #79 — GET /api/v1/executions no devuelve ejecuciones creadas vía REST
-**Diagnóstico**: Ejecuciones de blueprint guardaban `workflow_module: "Elixir.Cerebelum.WorkflowDelegatingWorkflow"` en el ExecutionStartedEvent, haciendo imposible distinguirlas por nombre de blueprint en el listado. **Fix**: Agregado campo `blueprint_name` al ExecutionStartedEvent y query de listado usa `COALESCE(blueprint_name, workflow_module)`. Archivos: `events.ex`, `event_emitter.ex`, `event_store.ex`, `execution_controller.ex`. Branch: `fix/79-executions-list`.
+**Diagnóstico**: Ejecuciones de blueprint guardaban `workflow_module: "Elixir.Cerebelum.WorkflowDelegatingWorkflow"` en el ExecutionStartedEvent, haciendo imposible distinguirlas por nombre de blueprint en el listado. **Fix**: Agregado campo `blueprint_name` al ExecutionStartedEvent y query de listado usa `COALESCE(blueprint_name, workflow_module)`. Además se encontraron bugs pre-existentes: el controller no pasaba `workflow_name` a `EventStore.list_executions` y usaba `length(executions)` en vez del total real. **Archivos**: `events.ex`, `event_emitter.ex`, `event_store.ex`, `execution_controller.ex`. **Issues**: #79, #80, #81, #82, #83, #84, #85. **Validado**: filtro `?workflow=X` funciona, nuevo blueprint `demo_fix_79` aparece con su nombre real, `?workflow=no_existe` retorna 0.
 
 ## [2026-07-13] docs | Creado .wiki/ para memoria persistente del agente
 Siguiendo el patrón LLM Wiki (Karpathy). Estructura: index.md, log.md, rules.md, features/, integrations/. Seed con features existentes (workflow engine, gRPC, HITL, event store, REST API, multi-tenancy, resurrection, blueprint registry) e integraciones (thalamus, cranium, fm_funds, postgres, redis, python-worker-sdk, docker).
