@@ -72,6 +72,13 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
           |> Enum.map(fn %{name: n} -> n; n when is_binary(n) -> n; n -> n end)
         args = StepExecutor.build_arguments(data.context, data.current_step_index, timeline, data.results)
         step_inputs = build_step_inputs(args, timeline, data.current_step_index, Map.get(data.results, step_name))
+
+        # Propagate auth token so workflow steps can call external APIs
+        step_inputs = case get_in(data.context.metadata, [:auth_token]) do
+          nil -> step_inputs
+          token when is_binary(token) -> Map.put(step_inputs, "auth_token", token)
+          _ -> step_inputs
+        end
         Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
 
       :local ->

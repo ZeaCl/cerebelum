@@ -76,6 +76,12 @@ defmodule Cerebelum.API.ExecutionController do
     inputs = params["input"] || params["inputs"] || %{}
     org_id = conn.assigns[:organization_id]
 
+    # Extract auth token to propagate to workflow steps (for API calls)
+    auth_token = case get_req_header(conn, "authorization") do
+      ["Bearer " <> token] -> token
+      _ -> nil
+    end
+
     workflow_module = find_workflow_module(workflow_name)
 
     cond do
@@ -98,7 +104,7 @@ defmodule Cerebelum.API.ExecutionController do
 
       # Deployed blueprint (from deploy command)
       BlueprintRegistry.get_blueprint(workflow_name) != {:error, :not_found} ->
-        case execute_blueprint(workflow_name, inputs) do
+        case execute_blueprint(workflow_name, inputs, auth_token) do
           {:ok, execution_id} ->
             if org_id, do: put_execution_org(execution_id, org_id)
             conn
@@ -243,7 +249,7 @@ defmodule Cerebelum.API.ExecutionController do
 
   # Execute a blueprint stored in BlueprintRegistry.
   # Uses WorkflowDelegatingWorkflow + Engine (same path as gRPC execute_workflow).
-  defp execute_blueprint(workflow_name, inputs) do
+  defp execute_blueprint(workflow_name, inputs, auth_token \\ nil) do
     {:ok, blueprint} = BlueprintRegistry.get_blueprint(workflow_name)
     # Blueprint from gRPC worker stores steps under definition.timeline,
     # not at the top-level :steps key.
@@ -268,12 +274,23 @@ defmodule Cerebelum.API.ExecutionController do
     }
 
     # Start via Engine — same path as gRPC execute_workflow
-    {:ok, pid} = Cerebelum.Execution.Supervisor.start_execution(
-      Cerebelum.WorkflowDelegatingWorkflow,
-      inputs,
+    start_opts = [
       blueprint: full_blueprint,
       blueprint_name: workflow_name,
       execution_mode: :distributed
+    ]
+
+    # Propagate auth token so workflow steps can call external APIs
+    start_opts = if auth_token do
+      Keyword.put(start_opts, :metadata, %{auth_token: auth_token})
+    else
+      start_opts
+    end
+
+    {:ok, pid} = Cerebelum.Execution.Supervisor.start_execution(
+      Cerebelum.WorkflowDelegatingWorkflow,
+      inputs,
+      start_opts
     )
 
     execution_id = Cerebelum.Execution.Engine.get_execution_id(pid)

@@ -93,14 +93,24 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
     Logger.debug("Delegating step '#{step_name}' to worker for execution #{execution_id}")
 
     # 1. Crear task para el worker
+    task_context = %{
+      execution_id: execution_id,
+      step_name: step_name_str
+    }
+
+    # Propagate auth token so workflow steps can call external APIs
+    auth_token = get_in(data.context.metadata, [:auth_token])
+    task_context = if auth_token do
+      Map.put(task_context, :auth_token, auth_token)
+    else
+      task_context
+    end
+
     task = %{
       workflow_module: blueprint_name,
       step_name: step_name_str,
       inputs: step_inputs,
-      context: %{
-        execution_id: execution_id,
-        step_name: step_name_str
-      }
+      context: task_context
     }
 
     # 2. Encolar task en TaskRouter
