@@ -76,8 +76,12 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
         # Propagate auth token so workflow steps can call external APIs
         step_inputs = case get_in(data.context.metadata, [:auth_token]) do
-          nil -> step_inputs
-          token when is_binary(token) -> Map.put(step_inputs, "auth_token", token)
+          nil ->
+            Logger.info("No auth_token in context metadata for step #{step_name}")
+            step_inputs
+          token when is_binary(token) ->
+            Logger.info("Propagating auth_token to step #{step_name} (len=#{byte_size(token)})")
+            Map.put(step_inputs, "auth_token", token)
           _ -> step_inputs
         end
         Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
