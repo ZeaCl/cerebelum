@@ -48,3 +48,46 @@ Workers deployan blueprints vía gRPC que se almacenan en BlueprintRegistry (ETS
 ```elixir
 BlueprintRegistry.store_blueprint("my_workflow", %{language: "python", steps: [...]})
 ```
+
+## Propagación de auth_token
+
+Cuando un workflow se ejecuta vía REST API con `Authorization: Bearer <token>`, el engine propaga el JWT del usuario al worker para que los steps que llaman APIs externas puedan autenticarse:
+
+```
+execution_controller.ex
+  → get_req_header(conn, "authorization") → ["Bearer <token>"]
+  → execute_blueprint(workflow_name, inputs, auth_token)
+  → Context.new(..., metadata: %{auth_token: token})
+
+state_handlers.ex (:remote path)
+  → get_in(data.context.metadata, [:auth_token])
+  → Map.put(step_inputs, "auth_token", token)
+  → Logger.info("Propagating auth_token to step X (len=NNN)")
+
+delegating_workflow.ex
+  → task = %{inputs: step_inputs, ...}  # incluye auth_token
+  → TaskRouter.queue_task()
+
+worker_service_server.ex
+  → convert_to_struct(task.inputs) → Protobuf Struct
+  → gRPC → Worker Python
+
+Worker Python (create_fund)
+  → auth_token = (inputs or {}).get("auth_token")
+  → headers = {"Authorization": f"Bearer {auth_token}"}
+  → urllib.request.Request(url, headers=headers)
+```
+
+### ⚠️ Tokens válidos
+- ✅ OAuth2 PKCE (`/oauth/token` con `authorization_code`) — tiene `domain_roles`, pasa introspection
+- ❌ `/api/public/login` — tiene `domain_roles` pero NO pasa `/oauth/introspect` (token de sesión)
+- ❌ `client_credentials` (`internal_login`) — pasa introspection pero NO tiene `domain_roles`
+
+### Verificación en logs
+```bash
+# Engine logs
+ssh VPS "sudo docker logs zea_cerebelum | grep -E 'Propagating auth_token|No auth_token'"
+
+# Worker logs
+ssh VPS "sudo docker logs zea_sudlich_worker | grep -E 'auth_token present|WARNING.*auth_token'"
+```
