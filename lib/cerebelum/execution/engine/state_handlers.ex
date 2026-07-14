@@ -205,6 +205,8 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Merge named results with previous_results for backward compatibility
     inputs = Map.merge(%{previous_results: prev_results}, named_results)
 
+    Logger.info("build_step_inputs[#{current_step_index}]: prev_steps=#{inspect(prev_steps)}, prev_results_count=#{length(prev_results)}, named_keys=#{inspect(Map.keys(named_results))}")
+
 
     # Include current step's own result so HITL steps receive approval data on re-execution
     case current_result do
