@@ -66,10 +66,11 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
       :remote ->
         # Distributed workflow — delegate to worker via DelegatingWorkflow
         Logger.info("Delegating step '#{step_name}' to worker")
-        # For delegated workflows, the real timeline is in data.blueprint.definition.timeline
-        # Extract step names from blueprint timeline (maps → strings)
-        timeline = (get_in(data.blueprint, [:definition, :timeline]) || [])
-          |> Enum.map(fn %{name: n} -> n; n when is_binary(n) -> n; n -> n end)
+        # Use data.timeline (atoms) — already extracted from blueprint in Data.new,
+        # and consistent with data.results which also uses atom keys.
+        # Fixes #89: previously rebuilt timeline from blueprint with string keys,
+        # causing Map.get(atom_results, string_key) → nil in build_arguments.
+        timeline = data.timeline
         args = StepExecutor.build_arguments(data.context, data.current_step_index, timeline, data.results)
         step_inputs = build_step_inputs(args, timeline, data.current_step_index, Map.get(data.results, step_name))
 
