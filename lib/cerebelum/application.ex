@@ -45,7 +45,10 @@ defmodule Cerebelum.Application do
       Cerebelum.Execution.Resurrector,
 
       # Workflow scheduler for periodic resurrection of hibernated workflows
-      Cerebelum.Infrastructure.WorkflowScheduler
+      Cerebelum.Infrastructure.WorkflowScheduler,
+
+      # Telemetry supervisor for metrics export (Prometheus via prom_ex)
+      Cerebelum.API.Telemetry
     ]
 
     # Conditionally add gRPC server if enabled

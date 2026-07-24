@@ -190,6 +190,14 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     # Check if any workers are waiting (long-polling)
     notify_waiting_workers(execution_id)
 
+    # Telemetry: task queued
+    queue_depth = :ets.info(@task_queue_table, :size)
+    :telemetry.execute(
+      [:cerebelum, :tasks, :queued],
+      %{count: queue_depth},
+      %{execution_id: execution_id, step_name: metadata.step_name}
+    )
+
     {:reply, {:ok, task_id}, state}
   end
 
@@ -230,6 +238,14 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
       [{^task_id, metadata}] ->
         # Clean up metadata after retrieval
         :ets.delete(@task_metadata_table, task_id)
+
+        # Telemetry: task completed
+        queue_depth = :ets.info(@task_queue_table, :size)
+        :telemetry.execute(
+          [:cerebelum, :tasks, :completed],
+          %{count: queue_depth},
+          %{execution_id: Map.get(metadata, :execution_id), step_name: Map.get(metadata, :step_name)}
+        )
 
         # Return metadata along with result for further processing
         {:reply, {:ok, metadata}, state}

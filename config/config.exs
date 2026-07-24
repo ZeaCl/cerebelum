@@ -51,3 +51,7 @@ config :phoenix, :json_library, Jason
 
 # Import environment specific config
 import_config "#{config_env()}.exs"
+
+# PromEx — Prometheus metrics export
+config :cerebelum, Cerebelum.API.Telemetry,
+  metrics_server: [port: 4021]

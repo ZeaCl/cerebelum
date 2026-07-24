@@ -1,5 +1,10 @@
 # Log
 
+## [2026-07-24] feat | #103, #104, #105, #106 — Instrumentación Prometheus (prom_ex + métricas + dashboard)
+**(#100) BlueprintRegistry**: `get_step/2`, `update_step/3`, `delete_step/2` con helpers `split_steps/1`, `rebuild_code/2`, `extract_step_name_from_code/1` para parseo de código Python por `@step`. 17 tests.
+**(#101) API**: 4 endpoints nuevos en `WorkflowController` (`steps`, `show_step`, `update_step`, `delete_step`) + 4 rutas en `Router` bajo scope `:api`. 13 tests.
+**Archivos**: `blueprint_registry.ex`, `workflow_controller.ex`, `router.ex`, `blueprint_registry_test.exs` (nuevo), `workflow_controller_step_test.exs` (nuevo). **Issues**: #98 (parent), #100, #101.
+
 ## [2026-07-14] fix | #89, #90, #91 — Destrabar Südlich: create_fund 401 en producción
 **Diagnóstico**: 3 bugs encadenados bloqueaban el wizard de creación de fondos. **(1) named_results atom/string mismatch**: el path remoto en `state_handlers.ex` reconstruía la timeline con strings desde el blueprint, pero `data.results` usa átomos → `Map.get(atom_results, string_key)` → nil. Fix: usar `data.timeline` (átomos) directamente. **(2) create_fund no extraía datos**: referenciaba `id_data`, `fin_data`, etc. sin definirlas. Fix: extraer de parámetros nombrados. **(3) auth_token no se propagaba**: el engine no pasaba el JWT del usuario al worker. Fix: `execution_controller.ex` extrae token del header → `context.metadata` → `Map.put(step_inputs, "auth_token", token)`. **Verificado en prod**: ejecución `446337e6` con token OAuth2 PKCE de `c@zea.cl` → 6/6 completado, fondo creado en `fm_funds.funds` ($50M USD, DRAFT). **Archivos**: `state_handlers.ex`, `step_executor_test.exs`, `jwt_auth.ex` (Logger.info), `sudlich/workflows/fund_create_workflow.py`. **Issues**: #89, #90, #91, #92, #93, #94, #95, #96.
 
