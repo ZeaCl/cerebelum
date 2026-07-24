@@ -1,36 +1,22 @@
 {
-  "name": "@zea.cl/cerebelum-cli",
-  "version": "0.2.0",
-  "description": "Cerebelum CLI — Deterministic workflow orchestration from the terminal",
+  "name": "@zea.cl/cerebelum",
+  "version": "1.0.0",
+  "description": "ZEA Cerebelum CLI — Deterministic Workflow Orchestration",
+  "type": "module",
+  "main": "src/index.js",
   "bin": {
-    "cerebelum": "./bin/cerebelum.js"
+    "zea-cerebelum": "./bin/zea-cerebelum.js"
   },
-  "files": [
-    "dist",
-    "bin"
-  ],
-  "keywords": [
-    "workflow",
-    "orchestration",
-    "cli",
-    "ai",
-    "agent",
-    "temporal"
-  ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
+    "start": "node bin/zea-cerebelum.js"
   },
-  "dependencies": {},
-  "devDependencies": {
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "@types/node": "^22.0.0"
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^12.0.0",
+    "open": "^10.1.0",
+    "ora": "^9.4.0"
   },
-  "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ZeaCl/cerebelum.git",
-    "directory": "cli"
-  }
+  "repository": "github:ZeaCl/cerebelum",
+  "keywords": ["zea", "cerebelum", "workflow", "orchestration", "cli"],
+  "license": "Apache-2.0"
 }

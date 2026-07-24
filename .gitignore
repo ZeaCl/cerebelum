@@ -69,6 +69,7 @@ coverage/
 .DS_Store
 specs/*
 docs/*
+!docs/cli/
 priv/certs/*.key
 priv/certs/*.srl
 *.zip

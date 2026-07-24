@@ -26,10 +26,6 @@ jobs:
         working-directory: cli
         run: npm ci
 
-      - name: Build CLI
-        working-directory: cli
-        run: npm run build
-
       - name: Publish to NPM
         working-directory: cli
         run: npm publish --access public
