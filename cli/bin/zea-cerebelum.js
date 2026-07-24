@@ -16,6 +16,7 @@ import { register as registerWorker } from '../src/commands/worker.js';
 import { register as registerLogs } from '../src/commands/logs.js';
 import { register as registerDevCerts } from '../src/commands/dev-certs.js';
 import { register as registerRun } from '../src/commands/run.js';
+import { register as registerStep } from '../src/commands/step.js';
 
 // ═══ Program ════════════════════════════════════════════
 const program = new Command();
@@ -41,6 +42,7 @@ registerWorker(program);
 registerLogs(program);
 registerDevCerts(program);
 registerRun(program);
+registerStep(program);
 
 // ═══ Dynamic command discovery (--zea-discover) ═════
 // Used by zea-cli to auto-discover available commands for

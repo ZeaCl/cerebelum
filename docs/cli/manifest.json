@@ -356,6 +356,88 @@
         }
       ],
       "auth": true
+    },
+    "step": {
+      "description": "Manage individual workflow steps",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "step list": {
+      "description": "List steps in a workflow",
+      "options": [],
+      "arguments": [
+        {
+          "name": "workflow",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "step show": {
+      "description": "Show step source code",
+      "options": [],
+      "arguments": [
+        {
+          "name": "workflow",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "step",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "step update": {
+      "description": "Update a step from a Python file",
+      "options": [],
+      "arguments": [
+        {
+          "name": "workflow",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "step",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "file",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "step delete": {
+      "description": "Delete a step from a workflow",
+      "options": [
+        {
+          "name": "--yes",
+          "short": null,
+          "type": "yes",
+          "description": "Skip confirmation prompt",
+          "required": false
+        }
+      ],
+      "arguments": [
+        {
+          "name": "workflow",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "step",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
     }
   }
 }
