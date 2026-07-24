@@ -145,6 +145,15 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
         :ets.insert(@table_name, {worker_id, worker})
         
         Logger.info("Worker registered: #{worker_id} (#{worker.language})")
+
+        # Telemetry: worker connected
+        total = count_workers()
+        :telemetry.execute(
+          [:cerebelum, :workers, :connected],
+          %{count: total},
+          %{worker_id: worker_id, language: worker.language}
+        )
+
         {:reply, {:ok, worker}, state}
         
       [{^worker_id, _existing}] ->
@@ -159,6 +168,15 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
       [{^worker_id, _worker}] ->
         :ets.delete(@table_name, worker_id)
         Logger.info("Worker unregistered: #{worker_id}, reason: #{reason}")
+
+        # Telemetry: worker disconnected
+        total = count_workers()
+        :telemetry.execute(
+          [:cerebelum, :workers, :disconnected],
+          %{count: total},
+          %{worker_id: worker_id, reason: reason}
+        )
+
         {:reply, :ok, state}
         
       [] ->
@@ -270,5 +288,9 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   defp now do
     System.system_time(:second)
+  end
+
+  defp count_workers do
+    :ets.info(@table_name, :size)
   end
 end

@@ -109,6 +109,44 @@ defmodule Cerebelum.Metrics do
             tags: [:workflow]
           )
         ]
+      ),
+
+      # ── Workers ──────────────────────────────────────
+      Event.build(
+        :cerebelum_worker_event_metrics,
+        [
+          last_value("cerebelum.workers.connected.count",
+            event_name: [:cerebelum, :workers, :connected],
+            measurement: :count,
+            description: "Number of workers currently connected",
+            tags: [:worker_id, :language]
+          ),
+          last_value("cerebelum.workers.disconnected.count",
+            event_name: [:cerebelum, :workers, :disconnected],
+            measurement: :count,
+            description: "Number of workers disconnected (cumulative)",
+            tags: [:worker_id, :reason]
+          )
+        ]
+      ),
+
+      # ── Tasks ────────────────────────────────────────
+      Event.build(
+        :cerebelum_task_event_metrics,
+        [
+          last_value("cerebelum.tasks.queued.count",
+            event_name: [:cerebelum, :tasks, :queued],
+            measurement: :count,
+            description: "Current number of tasks in queue",
+            tags: [:step_name]
+          ),
+          last_value("cerebelum.tasks.completed.count",
+            event_name: [:cerebelum, :tasks, :completed],
+            measurement: :count,
+            description: "Current number of tasks completed",
+            tags: [:step_name]
+          )
+        ]
       )
     ]
   end
