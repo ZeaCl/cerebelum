@@ -1,0 +1,361 @@
+{
+  "service": "cerebelum",
+  "version": "1.0.0",
+  "description": "Deterministic Workflow Orchestration",
+  "endpoints": {
+    "default": "http://cerebelum.zea.localhost",
+    "env_override": "CEREBELUM_API_URL | CEREBELUM_URL"
+  },
+  "commands": {
+    "config": {
+      "description": "Manage Cerebelum configuration",
+      "options": [],
+      "arguments": [],
+      "auth": false
+    },
+    "config set-env": {
+      "description": "Set standard environment profile (local or prod)",
+      "options": [],
+      "arguments": [
+        {
+          "name": "env",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": false
+    },
+    "config set": {
+      "description": "Set a configuration value",
+      "options": [],
+      "arguments": [
+        {
+          "name": "key",
+          "required": true,
+          "description": ""
+        },
+        {
+          "name": "value",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": false
+    },
+    "config get": {
+      "description": "Get a configuration value",
+      "options": [],
+      "arguments": [
+        {
+          "name": "key",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": false
+    },
+    "config list": {
+      "description": "List all configuration values",
+      "options": [],
+      "arguments": [],
+      "auth": false
+    },
+    "config unset": {
+      "description": "Remove a configuration value",
+      "options": [],
+      "arguments": [
+        {
+          "name": "key",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": false
+    },
+    "config path": {
+      "description": "Show config file path",
+      "options": [],
+      "arguments": [],
+      "auth": false
+    },
+    "health": {
+      "description": "Check Cerebelum engine health status (no auth required)",
+      "options": [],
+      "arguments": [],
+      "auth": false
+    },
+    "doctor": {
+      "description": "Full integration diagnostic: connectivity, auth, workflows, workers",
+      "options": [],
+      "arguments": [],
+      "auth": false
+    },
+    "workflow": {
+      "description": "Manage workflow blueprints",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "workflow list": {
+      "description": "List registered workflows",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "workflow show": {
+      "description": "Show workflow details",
+      "options": [],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "workflow code": {
+      "description": "Show workflow source code",
+      "options": [],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "workflow run": {
+      "description": "Execute a workflow",
+      "options": [
+        {
+          "name": "--inputs",
+          "short": null,
+          "type": "inputs",
+          "description": "JSON inputs for the workflow",
+          "required": true,
+          "default": "{}"
+        }
+      ],
+      "arguments": [
+        {
+          "name": "module",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "deploy": {
+      "description": "Deploy a workflow blueprint from a Python file",
+      "options": [
+        {
+          "name": "--name",
+          "short": null,
+          "type": "name",
+          "description": "Workflow name (default: derived from file)",
+          "required": true
+        }
+      ],
+      "arguments": [
+        {
+          "name": "file",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "execution": {
+      "description": "Manage workflow executions",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "execution list": {
+      "description": "List executions with optional filters",
+      "options": [
+        {
+          "name": "--status",
+          "short": null,
+          "type": "status",
+          "description": "Filter by status: running, completed, failed, waiting_for_approval",
+          "required": true
+        },
+        {
+          "name": "--workflow",
+          "short": null,
+          "type": "workflow",
+          "description": "Filter by workflow name",
+          "required": true
+        },
+        {
+          "name": "--limit",
+          "short": null,
+          "type": "limit",
+          "description": "Max results",
+          "required": true,
+          "default": "50"
+        },
+        {
+          "name": "--offset",
+          "short": null,
+          "type": "offset",
+          "description": "Pagination offset",
+          "required": true,
+          "default": "0"
+        }
+      ],
+      "arguments": [],
+      "auth": true
+    },
+    "execution status": {
+      "description": "Show execution status",
+      "options": [],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "execution events": {
+      "description": "Show execution event timeline",
+      "options": [],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "execution stop": {
+      "description": "Stop a running execution",
+      "options": [],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "execution resume": {
+      "description": "Resume a paused execution",
+      "options": [],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "execution approve": {
+      "description": "Approve a HITL (human-in-the-loop) step",
+      "options": [
+        {
+          "name": "--response",
+          "short": null,
+          "type": "response",
+          "description": "Approval response data",
+          "required": true,
+          "default": "{\"decision\":\"approved\"}"
+        }
+      ],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "worker": {
+      "description": "Manage Python workers",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "worker list": {
+      "description": "List registered Python workers",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "logs": {
+      "description": "Get execution logs",
+      "options": [
+        {
+          "name": "-f",
+          "short": "--follow",
+          "type": "F",
+          "description": "Follow logs in real-time",
+          "required": false
+        }
+      ],
+      "arguments": [
+        {
+          "name": "id",
+          "required": true,
+          "description": ""
+        }
+      ],
+      "auth": true
+    },
+    "dev-certs": {
+      "description": "Manage local development mTLS certificates",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "dev-certs create": {
+      "description": "Generate mTLS certificates for local worker (requires auth)",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "dev-certs status": {
+      "description": "Check if mTLS certificates exist locally",
+      "options": [],
+      "arguments": [],
+      "auth": true
+    },
+    "run": {
+      "description": "Run a local workflow.py end-to-end (deploy + execute + logs)",
+      "options": [
+        {
+          "name": "--inputs",
+          "short": null,
+          "type": "inputs",
+          "description": "JSON inputs for the workflow",
+          "required": true,
+          "default": "{}"
+        },
+        {
+          "name": "--no-follow",
+          "short": null,
+          "type": "follow",
+          "description": "Do not stream logs after starting",
+          "required": false
+        }
+      ],
+      "arguments": [
+        {
+          "name": "file",
+          "required": false,
+          "description": ""
+        }
+      ],
+      "auth": true
+    }
+  }
+}
