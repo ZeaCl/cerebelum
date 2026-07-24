@@ -101,6 +101,9 @@ defmodule Cerebelum.MixProject do
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
 
+      # Prometheus metrics export
+      {:prom_ex, "~> 1.9"},
+
       # gRPC for multi-language SDK support
       {:grpc, "~> 0.11"},
       {:protobuf, "~> 0.14"},

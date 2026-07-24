@@ -168,6 +168,13 @@ defmodule Cerebelum.API.WorkflowController do
 
         :ok = BlueprintRegistry.store_blueprint(name, blueprint)
 
+        # Telemetry: blueprint deployed
+        :telemetry.execute(
+          [:cerebelum, :blueprints, :deployed],
+          %{count: 1},
+          %{name: name, steps: length(steps), language: language}
+        )
+
         Logger.info("Blueprint deployed: #{name} with #{length(steps)} steps")
 
         conn
@@ -203,6 +210,159 @@ defmodule Cerebelum.API.WorkflowController do
     end)
     |> elem(1)
     |> Enum.reverse()
+  end
+
+  @doc """
+  GET /api/v1/workflows/:id/steps
+
+  List all steps of a workflow with metadata.
+  """
+  def steps(conn, %{"id" => workflow_id}) do
+    case BlueprintRegistry.get_blueprint(workflow_id) do
+      {:ok, blueprint} ->
+        step_names = blueprint[:steps] || []
+        code = blueprint[:code] || ""
+
+        steps_data =
+          step_names
+          |> Enum.with_index()
+          |> Enum.map(fn {name, index} ->
+            %{
+              name: name,
+              position: index,
+              has_code: String.contains?(code, "def #{name}(")
+            }
+          end)
+
+        json(conn, %{
+          data: %{
+            workflow: workflow_id,
+            total: length(steps_data),
+            steps: steps_data
+          }
+        })
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Workflow not found"})
+    end
+  end
+
+  @doc """
+  GET /api/v1/workflows/:id/steps/:name
+
+  Returns the source code of a single step.
+  """
+  def show_step(conn, %{"id" => workflow_id, "name" => step_name}) do
+    case BlueprintRegistry.get_step(workflow_id, step_name) do
+      {:ok, code} ->
+        json(conn, %{
+          data: %{
+            name: step_name,
+            workflow: workflow_id,
+            code: code
+          }
+        })
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Workflow not found"})
+
+      {:error, :step_not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Step '#{step_name}' not found in workflow '#{workflow_id}'"})
+    end
+  end
+
+  @doc """
+  PUT /api/v1/workflows/:id/steps/:name
+
+  Update the source code of a single step.
+
+  Body: { "code": "@step\ndef step_name(...):\n  ..." }
+  """
+  def update_step(conn, %{"id" => workflow_id, "name" => step_name} = params) do
+    code = params["code"]
+
+    cond do
+      is_nil(code) or code == "" ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: "Missing 'code' field"})
+
+      true ->
+        case BlueprintRegistry.update_step(workflow_id, step_name, code) do
+          :ok ->
+            Logger.info("Step '#{step_name}' updated in workflow '#{workflow_id}'")
+
+            # Telemetry: step updated
+            :telemetry.execute(
+              [:cerebelum, :blueprints, :steps, :updated],
+              %{count: 1},
+              %{workflow: workflow_id, step: step_name}
+            )
+
+            conn
+            |> json(%{
+              data: %{
+                name: step_name,
+                workflow: workflow_id,
+                updated: true
+              }
+            })
+
+          {:error, :not_found} ->
+            conn
+            |> put_status(:not_found)
+            |> json(%{error: "Workflow not found"})
+
+          {:error, :invalid_step_code} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: "Invalid step code: must contain a function definition (def function_name)"})
+        end
+    end
+  end
+
+  @doc """
+  DELETE /api/v1/workflows/:id/steps/:name
+
+  Delete a single step from a workflow.
+  """
+  def delete_step(conn, %{"id" => workflow_id, "name" => step_name}) do
+    case BlueprintRegistry.delete_step(workflow_id, step_name) do
+      :ok ->
+        Logger.info("Step '#{step_name}' deleted from workflow '#{workflow_id}'")
+
+        # Telemetry: step deleted
+        :telemetry.execute(
+          [:cerebelum, :blueprints, :steps, :deleted],
+          %{count: 1},
+          %{workflow: workflow_id, step: step_name}
+        )
+
+        conn
+        |> json(%{
+          data: %{
+            name: step_name,
+            workflow: workflow_id,
+            deleted: true
+          }
+        })
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Workflow not found"})
+
+      {:error, :step_not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Step '#{step_name}' not found in workflow '#{workflow_id}'"})
+    end
   end
 
   defp find_workflow_in_workers(workers, workflow_id) do

@@ -28,3 +28,6 @@ config :cerebelum,
 
 # Print only warnings and errors during test
 config :logger, level: :warning
+
+# Disable PromEx in tests
+config :cerebelum, Cerebelum.API.Telemetry, disabled: true

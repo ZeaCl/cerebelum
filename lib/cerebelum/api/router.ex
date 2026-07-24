@@ -32,6 +32,13 @@ defmodule Cerebelum.API.Router do
     # Blueprint deployment
     post("/workflows/deploy", WorkflowController, :deploy)
 
+    # Step CRUD (granularity Lambda-like)
+    # IMPORTANT: /steps goes BEFORE /:name to avoid Phoenix matching "steps" as :name
+    get("/workflows/:id/steps", WorkflowController, :steps)
+    get("/workflows/:id/steps/:name", WorkflowController, :show_step)
+    put("/workflows/:id/steps/:name", WorkflowController, :update_step)
+    delete("/workflows/:id/steps/:name", WorkflowController, :delete_step)
+
     # Execution endpoints
     get("/executions", ExecutionController, :index)
     post("/executions", ExecutionController, :create)

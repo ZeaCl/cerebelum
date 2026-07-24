@@ -27,6 +27,17 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   def initializing(:internal, :start, data) do
     Logger.info("Starting execution: #{data.context.execution_id}")
 
+    # Telemetry: execution started
+    :telemetry.execute(
+      [:cerebelum, :executions, :started],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        workflow_module: inspect(data.context.workflow_module),
+        blueprint_name: data.blueprint_name || "native"
+      }
+    )
+
     # Emit ExecutionStartedEvent (sync)
     {version, data} = Data.next_event_version(data)
     EventEmitter.emit_execution_started(data, version)
@@ -150,6 +161,16 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   def completed(:enter, _old_state, data) do
     Logger.info("Execution completed: #{data.context.execution_id}")
 
+    # Telemetry: execution completed
+    :telemetry.execute(
+      [:cerebelum, :executions, :completed],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        total_steps: length(data.timeline)
+      }
+    )
+
     # Emit ExecutionCompletedEvent (sync)
     {version, data} = Data.next_event_version(data)
     EventEmitter.emit_execution_completed(data, 0, version)
@@ -173,6 +194,17 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   """
   def failed(:enter, _old_state, data) do
     Logger.error("Execution failed: #{data.context.execution_id}, error: #{inspect(data.error)}")
+
+    # Telemetry: execution failed
+    error_kind = if data.error, do: data.error.kind || :unknown, else: :unknown
+    :telemetry.execute(
+      [:cerebelum, :executions, :failed],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        error_kind: error_kind
+      }
+    )
 
     # Emit ExecutionFailedEvent (sync)
     {version, data} = Data.next_event_version(data)
@@ -255,6 +287,16 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   end
 
   defp handle_regular_step_success(data, step_name, step_result) do
+    # Telemetry: step executed
+    :telemetry.execute(
+      [:cerebelum, :steps, :executed],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        step_name: step_name
+      }
+    )
+
     # Store result
     data = Data.store_result(data, step_name, step_result)
 
@@ -387,6 +429,16 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     end
     Logger.error("Step #{step_name} failed: #{formatted}")
 
+    # Telemetry: step failed
+    :telemetry.execute(
+      [:cerebelum, :steps, :failed],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        step_name: step_name
+      }
+    )
+
     # Emit StepFailedEvent (async batched)
     {version, data} = Data.next_event_version(data)
 
@@ -504,6 +556,17 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   def sleeping(:enter, old_state, data) do
     Logger.info("Entering :sleeping state for #{data.sleep_duration_ms}ms")
 
+    # Telemetry: workflow entered sleep
+    :telemetry.execute(
+      [:cerebelum, :workflows, :sleep, :entered],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        step_name: data.sleep_step_name,
+        duration_ms: data.sleep_duration_ms
+      }
+    )
+
     # Only emit SleepStartedEvent if this is a NEW sleep (not a resume)
     # When resuming, old_state will be :sleeping (same state)
     # When entering for first time, old_state will be :executing_step
@@ -575,6 +638,16 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
     Logger.info("Waking up from sleep (actual: #{actual_duration}ms)")
 
+    # Telemetry: workflow exited sleep
+    :telemetry.execute(
+      [:cerebelum, :workflows, :sleep, :exited],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        actual_duration_ms: actual_duration
+      }
+    )
+
     # Emit SleepCompletedEvent
     {version, data} = Data.next_event_version(data)
 
@@ -633,6 +706,17 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   def waiting_for_approval(:enter, _old_state, data) do
     Logger.info("Entering :waiting_for_approval state for step: #{data.approval_step_name}")
 
+    # Telemetry: workflow entered approval
+    :telemetry.execute(
+      [:cerebelum, :workflows, :approval, :entered],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        step_name: data.approval_step_name,
+        approval_type: data.approval_type
+      }
+    )
+
     # Emit ApprovalRequestedEvent
     {version, data} = Data.next_event_version(data)
 
@@ -661,6 +745,18 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
   def waiting_for_approval({:call, from}, {:approve, approval_response}, data) do
     Logger.info("Approval received for step: #{data.approval_step_name}")
+
+    # Telemetry: approval resolved
+    :telemetry.execute(
+      [:cerebelum, :workflows, :approval, :exited],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        step_name: data.approval_step_name,
+        outcome: "approved",
+        elapsed_ms: System.monotonic_time(:millisecond) - data.approval_started_at
+      }
+    )
 
     # Calculate elapsed time
     elapsed_ms = System.monotonic_time(:millisecond) - data.approval_started_at
@@ -699,6 +795,17 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
   def waiting_for_approval({:call, from}, {:reject, rejection_reason}, data) do
     Logger.warning("Approval rejected for step: #{data.approval_step_name}, reason: #{inspect(rejection_reason)}")
+
+    # Telemetry: approval rejected
+    :telemetry.execute(
+      [:cerebelum, :workflows, :approval, :exited],
+      %{count: 1},
+      %{
+        execution_id: data.context.execution_id,
+        step_name: data.approval_step_name,
+        outcome: "rejected"
+      }
+    )
 
     # Calculate elapsed time
     elapsed_ms = System.monotonic_time(:millisecond) - data.approval_started_at
