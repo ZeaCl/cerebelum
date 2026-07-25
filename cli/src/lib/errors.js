@@ -12,7 +12,7 @@ export function handleError(error) {
   if (error.response) {
     const status = error.response.status;
     if (status === 401) {
-      console.error('🔒 Token expired or invalid. Run: zea login');
+      console.error('🔒 Token expired or invalid. Please authenticate first.');
     } else if (status === 403) {
       console.error('🚫 Forbidden. Check your permissions and active organization.');
     } else if (status === 404) {
@@ -26,7 +26,7 @@ export function handleError(error) {
     console.error('❌ Cannot reach Cerebelum. Is it running?');
     console.error('   Run: zea cerebelum health');
   } else if (error.message?.includes('Not authenticated')) {
-    console.error('❌ Not authenticated. Run: zea login');
+    console.error('❌ Not authenticated. Please authenticate first.');
   } else {
     console.error(`❌ Error: ${error.message || error}`);
   }
