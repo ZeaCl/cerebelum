@@ -1,5 +1,8 @@
 # Log
 
+## [2026-07-24] fix | #110 — handleError no sugiere comando de login
+Cerebelum delega auth en Thalamus, no debe prescribir `zea login`. Cambiado a `Please authenticate first.` en `cli/src/lib/errors.js`. **Archivos**: `cli/src/lib/errors.js`. **Issues**: #110. **PR**: #111.
+
 ## [2026-07-24] feat | #103, #104, #105, #106 — Instrumentación Prometheus (prom_ex + métricas + dashboard)
 **(#100) BlueprintRegistry**: `get_step/2`, `update_step/3`, `delete_step/2` con helpers `split_steps/1`, `rebuild_code/2`, `extract_step_name_from_code/1` para parseo de código Python por `@step`. 17 tests.
 **(#101) API**: 4 endpoints nuevos en `WorkflowController` (`steps`, `show_step`, `update_step`, `delete_step`) + 4 rutas en `Router` bajo scope `:api`. 13 tests.
