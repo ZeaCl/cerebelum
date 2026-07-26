@@ -159,7 +159,8 @@ defmodule Cerebelum.Benchmarks.EventStoreBenchmark do
             EventStore.get_events(execution_id)
           end)
 
-        time_micros / 1000  # Convert to milliseconds
+        # Convert to milliseconds
+        time_micros / 1000
       end
 
     sorted_latencies = Enum.sort(latencies)
@@ -218,13 +219,14 @@ defmodule Cerebelum.Benchmarks.EventStoreBenchmark do
 
   defp generate_test_events(execution_id, count) do
     # First event: ExecutionStartedEvent
-    start_event = ExecutionStartedEvent.new(
-      execution_id,
-      TestWorkflow,
-      %{},
-      0,
-      workflow_version: "1.0.0"
-    )
+    start_event =
+      ExecutionStartedEvent.new(
+        execution_id,
+        TestWorkflow,
+        %{},
+        0,
+        workflow_version: "1.0.0"
+      )
 
     # Rest: StepExecutedEvent
     step_events =
@@ -338,8 +340,15 @@ defmodule Cerebelum.Benchmarks.EventStoreBenchmark do
 
     IO.puts("\n  Performance Targets:")
     IO.puts("  ─────────────────────────────────────")
-    IO.puts("  #{if throughput_met, do: "✅", else: "⚠️ "} Write Throughput:  #{format_number(results.throughput.events_per_second)} / #{format_number(results.throughput.target)} events/sec")
-    IO.puts("  #{if latency_met, do: "✅", else: "⚠️ "} Query Latency p95:  #{results.query_latency.p95_ms}ms / #{results.query_latency.target_p95_ms}ms")
+
+    IO.puts(
+      "  #{if throughput_met, do: "✅", else: "⚠️ "} Write Throughput:  #{format_number(results.throughput.events_per_second)} / #{format_number(results.throughput.target)} events/sec"
+    )
+
+    IO.puts(
+      "  #{if latency_met, do: "✅", else: "⚠️ "} Query Latency p95:  #{results.query_latency.p95_ms}ms / #{results.query_latency.target_p95_ms}ms"
+    )
+
     IO.puts("  #{if batch_met, do: "✅", else: "⚠️ "} Batch Flush:        All < 100ms")
 
     if throughput_met && latency_met && batch_met do

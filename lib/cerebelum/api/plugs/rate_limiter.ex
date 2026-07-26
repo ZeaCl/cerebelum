@@ -39,6 +39,7 @@ defmodule Cerebelum.API.Plugs.RateLimiter do
   defp increment_counter(org_id) do
     table = ensure_table()
     key = {org_id, current_window()}
+
     try do
       :ets.update_counter(table, key, {2, 1}, {key, 0})
     rescue
@@ -52,6 +53,7 @@ defmodule Cerebelum.API.Plugs.RateLimiter do
     if :ets.whereis(@table) == :undefined do
       :ets.new(@table, [:named_table, :public, :set])
     end
+
     @table
   end
 end

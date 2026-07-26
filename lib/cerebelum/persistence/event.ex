@@ -49,10 +49,10 @@ defmodule Cerebelum.Persistence.Event do
         }
 
   schema "events" do
-    field :execution_id, :string
-    field :event_type, :string
-    field :event_data, :map
-    field :version, :integer
+    field(:execution_id, :string)
+    field(:event_type, :string)
+    field(:event_data, :map)
+    field(:version, :integer)
 
     timestamps(updated_at: false)
   end

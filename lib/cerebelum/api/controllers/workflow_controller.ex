@@ -322,7 +322,9 @@ defmodule Cerebelum.API.WorkflowController do
           {:error, :invalid_step_code} ->
             conn
             |> put_status(:unprocessable_entity)
-            |> json(%{error: "Invalid step code: must contain a function definition (def function_name)"})
+            |> json(%{
+              error: "Invalid step code: must contain a function definition (def function_name)"
+            })
         end
     end
   end
@@ -372,7 +374,9 @@ defmodule Cerebelum.API.WorkflowController do
 
       # Check if any capability matches the requested workflow_id
       case Enum.find(capabilities, fn cap -> cap == workflow_id end) do
-        nil -> false
+        nil ->
+          false
+
         cap ->
           %{
             id: cap,

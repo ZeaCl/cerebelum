@@ -345,48 +345,59 @@ defmodule Cerebelum.EventStore do
 
     # Base query: get distinct execution_ids with their latest event
     base_query =
-      from e in Event,
+      from(e in Event,
         distinct: e.execution_id,
         select: %{
           execution_id: e.execution_id,
-          latest_event_type: fragment("(
+          latest_event_type:
+            fragment(
+              "(
             SELECT event_type FROM events
             WHERE execution_id = ?
             ORDER BY version DESC
             LIMIT 1
-          )", e.execution_id),
-          workflow_name: fragment("(
+          )",
+              e.execution_id
+            ),
+          workflow_name:
+            fragment(
+              "(
             SELECT COALESCE(event_data->>'blueprint_name', event_data->>'workflow_module')
             FROM events
             WHERE execution_id = ? AND event_type = 'ExecutionStartedEvent'
             LIMIT 1
-          )", e.execution_id)
+          )",
+              e.execution_id
+            )
         },
         order_by: [desc: e.inserted_at]
+      )
 
     # Apply workflow_name filter
-    query = if workflow_name do
-      base_query
-      |> where([e], fragment("EXISTS (
+    query =
+      if workflow_name do
+        base_query
+        |> where([e], fragment("EXISTS (
         SELECT 1 FROM events
         WHERE execution_id = ? AND event_type = 'ExecutionStartedEvent'
         AND COALESCE(event_data->>'blueprint_name', event_data->>'workflow_module') = ?
       )", e.execution_id, ^workflow_name))
-    else
-      base_query
-    end
+      else
+        base_query
+      end
 
     # Get all matching executions (for count and status filtering)
     all_executions = Repo.all(query)
 
     # Apply status filter if specified
-    filtered_executions = if status_filter do
-      Enum.filter(all_executions, fn exec ->
-        matches_status?(exec.latest_event_type, status_filter)
-      end)
-    else
-      all_executions
-    end
+    filtered_executions =
+      if status_filter do
+        Enum.filter(all_executions, fn exec ->
+          matches_status?(exec.latest_event_type, status_filter)
+        end)
+      else
+        all_executions
+      end
 
     total_count = length(filtered_executions)
 
@@ -401,7 +412,12 @@ defmodule Cerebelum.EventStore do
   end
 
   defp matches_status?(event_type, :running) do
-    event_type not in ["ExecutionCompletedEvent", "ExecutionFailedEvent", "SleepStartedEvent", "ApprovalRequestedEvent"]
+    event_type not in [
+      "ExecutionCompletedEvent",
+      "ExecutionFailedEvent",
+      "SleepStartedEvent",
+      "ApprovalRequestedEvent"
+    ]
   end
 
   defp matches_status?(event_type, :completed) do

@@ -77,11 +77,20 @@ defmodule Cerebelum.Execution.ParallelExecutor do
           String.t(),
           keyword()
         ) :: {:ok, map(), non_neg_integer()} | {:error, term(), map(), non_neg_integer()}
-  def execute_parallel(workflow_module, task_specs, context, parent_step, execution_id, opts \\ []) do
+  def execute_parallel(
+        workflow_module,
+        task_specs,
+        context,
+        parent_step,
+        execution_id,
+        opts \\ []
+      ) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
     version = Keyword.get(opts, :initial_version, 0)
 
-    Logger.info("Starting parallel execution of #{length(task_specs)} tasks from step #{parent_step}")
+    Logger.info(
+      "Starting parallel execution of #{length(task_specs)} tasks from step #{parent_step}"
+    )
 
     # Emit ParallelStartedEvent
     event = ParallelStartedEvent.new(execution_id, parent_step, task_specs, version)
@@ -123,7 +132,15 @@ defmodule Cerebelum.Execution.ParallelExecutor do
 
     # Emit completion event
     if Enum.empty?(errors) do
-      event = ParallelCompletedEvent.new(execution_id, parent_step, merged_results, total_duration, version)
+      event =
+        ParallelCompletedEvent.new(
+          execution_id,
+          parent_step,
+          merged_results,
+          total_duration,
+          version
+        )
+
       EventStore.append(execution_id, event, version)
       version = version + 1
 
@@ -167,7 +184,7 @@ defmodule Cerebelum.Execution.ParallelExecutor do
   defp process_task_results(task_results, parent_step, execution_id, initial_version) do
     {results, errors, version} =
       Enum.reduce(task_results, {%{}, [], initial_version}, fn {task_name, result},
-                                                                {acc_results, acc_errors, ver} ->
+                                                               {acc_results, acc_errors, ver} ->
         case result do
           {:ok, task_result, duration} ->
             # Task succeeded - emit success event

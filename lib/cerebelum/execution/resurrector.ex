@@ -58,8 +58,10 @@ defmodule Cerebelum.Execution.Resurrector do
   alias Cerebelum.Execution.Supervisor, as: ExecutionSupervisor
   alias Cerebelum.Repo
 
-  @resurrection_delay_ms 1_000  # Wait 1s after boot before resurrecting
-  @max_concurrent_resurrections 10  # Parallel resurrection limit
+  # Wait 1s after boot before resurrecting
+  @resurrection_delay_ms 1_000
+  # Parallel resurrection limit
+  @max_concurrent_resurrections 10
 
   defmodule State do
     @moduledoc false
@@ -124,7 +126,9 @@ defmodule Cerebelum.Execution.Resurrector do
       Logger.debug("Resurrector disabled in test environment")
       :ignore
     else
-      Logger.info("Resurrector started, will scan for paused workflows in #{@resurrection_delay_ms}ms")
+      Logger.info(
+        "Resurrector started, will scan for paused workflows in #{@resurrection_delay_ms}ms"
+      )
 
       # Schedule initial resurrection after delay
       Process.send_after(self(), :resurrect, @resurrection_delay_ms)
@@ -152,11 +156,12 @@ defmodule Cerebelum.Execution.Resurrector do
       %{}
     )
 
-    new_state = %{state |
-      last_resurrection_at: DateTime.utc_now(),
-      resurrection_count: state.resurrection_count + 1,
-      success_count: state.success_count + success_count,
-      failure_count: state.failure_count + failure_count
+    new_state = %{
+      state
+      | last_resurrection_at: DateTime.utc_now(),
+        resurrection_count: state.resurrection_count + 1,
+        success_count: state.success_count + success_count,
+        failure_count: state.failure_count + failure_count
     }
 
     {:noreply, new_state}
@@ -175,11 +180,12 @@ defmodule Cerebelum.Execution.Resurrector do
       duration_ms: duration_ms
     }
 
-    new_state = %{state |
-      last_resurrection_at: DateTime.utc_now(),
-      resurrection_count: state.resurrection_count + 1,
-      success_count: state.success_count + success_count,
-      failure_count: state.failure_count + failure_count
+    new_state = %{
+      state
+      | last_resurrection_at: DateTime.utc_now(),
+        resurrection_count: state.resurrection_count + 1,
+        success_count: state.success_count + success_count,
+        failure_count: state.failure_count + failure_count
     }
 
     {:reply, {:ok, stats}, new_state}
@@ -217,7 +223,8 @@ defmodule Cerebelum.Execution.Resurrector do
           resumable_executions,
           &attempt_resurrect/1,
           max_concurrency: @max_concurrent_resurrections,
-          timeout: 30_000  # 30s timeout per resurrection
+          # 30s timeout per resurrection
+          timeout: 30_000
         )
         |> Enum.to_list()
 

@@ -176,9 +176,14 @@ defmodule Cerebelum.Workflow.Metadata do
       # Extraer todas las acciones posibles de los patrones
       actions = extract_actions_from_patterns(patterns)
 
-      Map.update(acc, step_name, %{next: [], diverge_actions: actions, branch_actions: []}, fn existing ->
-        %{existing | diverge_actions: actions}
-      end)
+      Map.update(
+        acc,
+        step_name,
+        %{next: [], diverge_actions: actions, branch_actions: []},
+        fn existing ->
+          %{existing | diverge_actions: actions}
+        end
+      )
     end)
   end
 
@@ -187,9 +192,14 @@ defmodule Cerebelum.Workflow.Metadata do
       # Extraer todas las acciones posibles de las condiciones
       actions = extract_actions_from_conditions(conditions)
 
-      Map.update(acc, step_name, %{next: [], diverge_actions: [], branch_actions: actions}, fn existing ->
-        %{existing | branch_actions: actions}
-      end)
+      Map.update(
+        acc,
+        step_name,
+        %{next: [], diverge_actions: [], branch_actions: actions},
+        fn existing ->
+          %{existing | branch_actions: actions}
+        end
+      )
     end)
   end
 

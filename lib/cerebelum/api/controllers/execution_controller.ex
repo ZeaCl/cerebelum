@@ -17,12 +17,15 @@ defmodule Cerebelum.API.ExecutionController do
     if :ets.whereis(@execution_orgs_table) == :undefined do
       :ets.new(@execution_orgs_table, [:named_table, :public, :set])
     end
+
     :ets.insert(@execution_orgs_table, {execution_id, org_id})
   end
 
   # Get organization_id for an execution
   defp get_execution_org(execution_id) do
-    if :ets.whereis(@execution_orgs_table) == :undefined, do: :ets.new(@execution_orgs_table, [:named_table, :public, :set])
+    if :ets.whereis(@execution_orgs_table) == :undefined,
+      do: :ets.new(@execution_orgs_table, [:named_table, :public, :set])
+
     case :ets.lookup(@execution_orgs_table, execution_id) do
       [{^execution_id, org_id}] -> org_id
       [] -> nil
@@ -51,6 +54,7 @@ defmodule Cerebelum.API.ExecutionController do
       Enum.map(execution_ids, fn exec_id ->
         # Filter by organization_id if present
         exec_org = get_execution_org(exec_id)
+
         if org_id == nil or exec_org == nil or exec_org == org_id do
           case EventStore.get_events(exec_id) do
             {:ok, events} -> format_execution_summary(exec_id, events)
@@ -77,10 +81,11 @@ defmodule Cerebelum.API.ExecutionController do
     org_id = conn.assigns[:organization_id]
 
     # Extract auth token to propagate to workflow steps (for API calls)
-    auth_token = case get_req_header(conn, "authorization") do
-      ["Bearer " <> token] -> token
-      _ -> nil
-    end
+    auth_token =
+      case get_req_header(conn, "authorization") do
+        ["Bearer " <> token] -> token
+        _ -> nil
+      end
 
     workflow_module = find_workflow_module(workflow_name)
 
@@ -90,6 +95,7 @@ defmodule Cerebelum.API.ExecutionController do
         case Cerebelum.execute_workflow(workflow_module, inputs) do
           {:ok, execution} ->
             if org_id, do: put_execution_org(execution.id, org_id)
+
             json(conn, %{
               execution_id: execution.id,
               status: "started",
@@ -107,6 +113,7 @@ defmodule Cerebelum.API.ExecutionController do
         case execute_blueprint(workflow_name, inputs, auth_token) do
           {:ok, execution_id} ->
             if org_id, do: put_execution_org(execution_id, org_id)
+
             conn
             |> put_status(:created)
             |> json(%{
@@ -155,7 +162,6 @@ defmodule Cerebelum.API.ExecutionController do
         # Check if it's a completed/failed execution in event store
         case StateReconstructor.reconstruct(execution_id) do
           {:ok, state} ->
-
             json(conn, %{
               execution_id: execution_id,
               state: state[:status] || :unknown,
@@ -257,10 +263,11 @@ defmodule Cerebelum.API.ExecutionController do
 
     # Build blueprint definition in the format WorkflowDelegatingWorkflow expects
     definition = %{
-      timeline: Enum.map(steps, fn
-        %{name: name} -> %{name: name, depends_on: []}
-        name when is_binary(name) -> %{name: name, depends_on: []}
-      end),
+      timeline:
+        Enum.map(steps, fn
+          %{name: name} -> %{name: name, depends_on: []}
+          name when is_binary(name) -> %{name: name, depends_on: []}
+        end),
       diverge_rules: [],
       branch_rules: [],
       inputs: %{}
@@ -281,17 +288,19 @@ defmodule Cerebelum.API.ExecutionController do
     ]
 
     # Propagate auth token so workflow steps can call external APIs
-    start_opts = if auth_token do
-      Keyword.put(start_opts, :metadata, %{auth_token: auth_token})
-    else
-      start_opts
-    end
+    start_opts =
+      if auth_token do
+        Keyword.put(start_opts, :metadata, %{auth_token: auth_token})
+      else
+        start_opts
+      end
 
-    {:ok, pid} = Cerebelum.Execution.Supervisor.start_execution(
-      Cerebelum.WorkflowDelegatingWorkflow,
-      inputs,
-      start_opts
-    )
+    {:ok, pid} =
+      Cerebelum.Execution.Supervisor.start_execution(
+        Cerebelum.WorkflowDelegatingWorkflow,
+        inputs,
+        start_opts
+      )
 
     execution_id = Cerebelum.Execution.Engine.get_execution_id(pid)
 
@@ -337,7 +346,10 @@ defmodule Cerebelum.API.ExecutionController do
     %{
       execution_id: exec_id,
       status: status,
-      workflow: started && (get_in(started.event_data, ["blueprint_name"]) || get_in(started.event_data, ["workflow_module"])),
+      workflow:
+        started &&
+          (get_in(started.event_data, ["blueprint_name"]) ||
+             get_in(started.event_data, ["workflow_module"])),
       events_count: length(events)
     }
   end

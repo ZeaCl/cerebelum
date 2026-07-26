@@ -8,6 +8,6 @@ defmodule Cerebelum.Endpoint do
   use GRPC.Endpoint
 
   # Register the WorkerService
-  intercept GRPC.Server.Interceptors.Logger
-  run Cerebelum.Infrastructure.WorkerServiceServer
+  intercept(GRPC.Server.Interceptors.Logger)
+  run(Cerebelum.Infrastructure.WorkerServiceServer)
 end

@@ -25,6 +25,7 @@ defmodule Cerebelum.Execution.EventEmitter do
   """
 
   alias Cerebelum.EventStore
+
   alias Cerebelum.Events.{
     ExecutionStartedEvent,
     StepExecutedEvent,
@@ -35,6 +36,7 @@ defmodule Cerebelum.Execution.EventEmitter do
     ExecutionCompletedEvent,
     ExecutionFailedEvent
   }
+
   alias Cerebelum.Execution.Engine.Data
 
   @doc """
@@ -52,16 +54,17 @@ defmodule Cerebelum.Execution.EventEmitter do
   @spec emit_execution_started(Data.t(), non_neg_integer()) :: :ok | {:error, term()}
   def emit_execution_started(data, version) do
     if event_store_available?() do
-      event = ExecutionStartedEvent.new(
-        data.context.execution_id,
-        data.context.workflow_module,
-        data.context.inputs,
-        version,
-        correlation_id: data.context.correlation_id,
-        tags: data.context.tags,
-        workflow_version: data.workflow_metadata.version,
-        blueprint_name: data.blueprint_name
-      )
+      event =
+        ExecutionStartedEvent.new(
+          data.context.execution_id,
+          data.context.workflow_module,
+          data.context.inputs,
+          version,
+          correlation_id: data.context.correlation_id,
+          tags: data.context.tags,
+          workflow_version: data.workflow_metadata.version,
+          blueprint_name: data.blueprint_name
+        )
 
       case EventStore.append_sync(data.context.execution_id, event, version) do
         {:ok, _} -> :ok
@@ -98,15 +101,16 @@ defmodule Cerebelum.Execution.EventEmitter do
     # For now we use empty args list
     args = []
 
-    event = StepExecutedEvent.new(
-      data.context.execution_id,
-      step_name,
-      step_index,
-      args,
-      step_result,
-      duration_ms,
-      version
-    )
+    event =
+      StepExecutedEvent.new(
+        data.context.execution_id,
+        step_name,
+        step_index,
+        args,
+        step_result,
+        duration_ms,
+        version
+      )
 
     EventStore.append(data.context.execution_id, event, version)
   end
@@ -128,15 +132,16 @@ defmodule Cerebelum.Execution.EventEmitter do
   def emit_step_failed(data, error_info, version) do
     step_index = Enum.find_index(data.timeline, &(&1 == error_info.step_name)) || 0
 
-    event = StepFailedEvent.new(
-      data.context.execution_id,
-      error_info.step_name,
-      step_index,
-      error_info.kind,
-      error_info.reason,
-      Cerebelum.Execution.ErrorInfo.format(error_info),
-      version
-    )
+    event =
+      StepFailedEvent.new(
+        data.context.execution_id,
+        error_info.step_name,
+        step_index,
+        error_info.kind,
+        error_info.reason,
+        Cerebelum.Execution.ErrorInfo.format(error_info),
+        version
+      )
 
     EventStore.append(data.context.execution_id, event, version)
   end
@@ -161,14 +166,15 @@ defmodule Cerebelum.Execution.EventEmitter do
     # matched_pattern is a placeholder - in a real scenario this would be the actual pattern that matched
     matched_pattern = :unknown
 
-    event = DivergeTakenEvent.new(
-      data.context.execution_id,
-      from_step,
-      matched_pattern,
-      diverge_action,
-      target_step,
-      version
-    )
+    event =
+      DivergeTakenEvent.new(
+        data.context.execution_id,
+        from_step,
+        matched_pattern,
+        diverge_action,
+        target_step,
+        version
+      )
 
     EventStore.append(data.context.execution_id, event, version)
   end
@@ -193,14 +199,15 @@ defmodule Cerebelum.Execution.EventEmitter do
     # action is :skip_to for branches
     action = :skip_to
 
-    event = BranchTakenEvent.new(
-      data.context.execution_id,
-      from_step,
-      condition,
-      action,
-      target_step,
-      version
-    )
+    event =
+      BranchTakenEvent.new(
+        data.context.execution_id,
+        from_step,
+        condition,
+        action,
+        target_step,
+        version
+      )
 
     EventStore.append(data.context.execution_id, event, version)
   end
@@ -225,16 +232,17 @@ defmodule Cerebelum.Execution.EventEmitter do
     from_index = Enum.find_index(data.timeline, &(&1 == from_step)) || 0
     target_index = Enum.find_index(data.timeline, &(&1 == target_step)) || 0
 
-    event = JumpExecutedEvent.new(
-      data.context.execution_id,
-      jump_type,
-      from_step,
-      from_index,
-      target_step,
-      target_index,
-      data.iteration,
-      version
-    )
+    event =
+      JumpExecutedEvent.new(
+        data.context.execution_id,
+        jump_type,
+        from_step,
+        from_index,
+        target_step,
+        target_index,
+        data.iteration,
+        version
+      )
 
     EventStore.append(data.context.execution_id, event, version)
   end
@@ -252,19 +260,21 @@ defmodule Cerebelum.Execution.EventEmitter do
 
   `:ok` if event was persisted successfully, `{:error, reason}` otherwise.
   """
-  @spec emit_execution_completed(Data.t(), non_neg_integer(), non_neg_integer()) :: :ok | {:error, term()}
+  @spec emit_execution_completed(Data.t(), non_neg_integer(), non_neg_integer()) ::
+          :ok | {:error, term()}
   def emit_execution_completed(data, total_duration_ms, version) do
     if event_store_available?() do
       total_steps = length(data.timeline)
 
-      event = ExecutionCompletedEvent.new(
-        data.context.execution_id,
-        data.results,
-        total_steps,
-        total_duration_ms,
-        data.iteration,
-        version
-      )
+      event =
+        ExecutionCompletedEvent.new(
+          data.context.execution_id,
+          data.results,
+          total_steps,
+          total_duration_ms,
+          data.iteration,
+          version
+        )
 
       case EventStore.append_sync(data.context.execution_id, event, version) do
         {:ok, _} -> :ok
@@ -292,18 +302,24 @@ defmodule Cerebelum.Execution.EventEmitter do
 
   `:ok` if event was persisted successfully, `{:error, reason}` otherwise.
   """
-  @spec emit_execution_failed(Data.t(), Cerebelum.Execution.ErrorInfo.t(), non_neg_integer(), non_neg_integer()) :: :ok | {:error, term()}
+  @spec emit_execution_failed(
+          Data.t(),
+          Cerebelum.Execution.ErrorInfo.t(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) :: :ok | {:error, term()}
   def emit_execution_failed(data, error_info, total_duration_ms, version) do
     if event_store_available?() do
-      event = ExecutionFailedEvent.new(
-        data.context.execution_id,
-        error_info.kind,
-        error_info.reason,
-        Cerebelum.Execution.ErrorInfo.format(error_info),
-        error_info.step_name,
-        total_duration_ms,
-        version
-      )
+      event =
+        ExecutionFailedEvent.new(
+          data.context.execution_id,
+          error_info.kind,
+          error_info.reason,
+          Cerebelum.Execution.ErrorInfo.format(error_info),
+          error_info.step_name,
+          total_duration_ms,
+          version
+        )
 
       case EventStore.append_sync(data.context.execution_id, event, version) do
         {:ok, _} -> :ok

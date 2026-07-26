@@ -98,12 +98,14 @@ defmodule Cerebelum.Execution.ControllerApproveFixTest do
       [_context | prev_results] = args
       inputs = %{previous_results: prev_results}
 
-      result = case current_result do
-        {:ok, approval_data} when is_map(approval_data) ->
-          Map.put(inputs, :inputs, approval_data)
-        _ ->
-          inputs
-      end
+      result =
+        case current_result do
+          {:ok, approval_data} when is_map(approval_data) ->
+            Map.put(inputs, :inputs, approval_data)
+
+          _ ->
+            inputs
+        end
 
       # The step_inputs map should have previous_results AND inputs with approval data
       assert result.inputs == %{"name" => "Andes Growth Fund IV", "type" => "PE"}
@@ -117,12 +119,14 @@ defmodule Cerebelum.Execution.ControllerApproveFixTest do
       [_context | prev_results] = args
       inputs = %{previous_results: prev_results}
 
-      result = case current_result do
-        {:ok, approval_data} when is_map(approval_data) ->
-          Map.put(inputs, :inputs, approval_data)
-        _ ->
-          inputs
-      end
+      result =
+        case current_result do
+          {:ok, approval_data} when is_map(approval_data) ->
+            Map.put(inputs, :inputs, approval_data)
+
+          _ ->
+            inputs
+        end
 
       # On first execution, no inputs key should be added
       refute Map.has_key?(result, :inputs)

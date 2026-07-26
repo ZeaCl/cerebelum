@@ -46,10 +46,8 @@ defmodule Cerebelum.API.Plugs.JWTAuth do
 
     case :httpc.request(
            :post,
-           {String.to_charlist(introspection_url),
-            [{~c"content-type", ~c"application/json"}],
-            ~c"application/json",
-            String.to_charlist(body)},
+           {String.to_charlist(introspection_url), [{~c"content-type", ~c"application/json"}],
+            ~c"application/json", String.to_charlist(body)},
            [],
            []
          ) do

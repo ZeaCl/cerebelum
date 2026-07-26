@@ -145,7 +145,8 @@ defmodule Cerebelum.Workflow.Introspection do
     dependencies = extract_dependencies_from_clause(first_clause)
 
     %{
-      context: true,  # Siempre esperamos context como primer parámetro
+      # Siempre esperamos context como primer parámetro
+      context: true,
       dependencies: dependencies,
       clauses: length(clauses)
     }

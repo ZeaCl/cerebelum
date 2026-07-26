@@ -1,7 +1,7 @@
 defmodule Cerebelum.Infrastructure.TaskRouter do
   @moduledoc """
   Pull-based task distribution and routing for SDK workers.
-  
+
   Features:
   - Pull-based: Workers poll for tasks (not push-based)
   - Long-polling: Workers can block up to 30s waiting for tasks
@@ -9,7 +9,7 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
   - Fallback: If preferred worker unavailable, route to any idle worker
   - Task reassignment: When worker dies, reassign its pending tasks
   - Queue management: Queue tasks when no workers available
-  
+
   Architecture:
   - ETS tables for fast concurrent access
   - GenServer for coordination and state management
@@ -19,17 +19,23 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
   use GenServer
   require Logger
 
-  @max_long_poll_timeout_ms 30_000  # Max 30 seconds
-  @default_timeout_ms 10_000  # Default 10 seconds
-  @default_task_timeout_ms 300_000  # 5 minutes default task timeout
-  @max_retries 3  # Maximum retry attempts per task
-  @retry_backoff_base_ms 1000  # Base backoff for retries (exponential)
+  # Max 30 seconds
+  @max_long_poll_timeout_ms 30_000
+  # Default 10 seconds
+  @default_timeout_ms 10_000
+  # 5 minutes default task timeout
+  @default_task_timeout_ms 300_000
+  # Maximum retry attempts per task
+  @max_retries 3
+  # Base backoff for retries (exponential)
+  @retry_backoff_base_ms 1000
 
   @task_queue_table :task_queue
   @execution_worker_mapping_table :execution_worker_mapping
   @pending_polls_table :pending_polls
   @task_metadata_table :task_metadata
-  @active_tasks_table :active_tasks  # Track assigned tasks for timeout monitoring
+  # Track assigned tasks for timeout monitoring
+  @active_tasks_table :active_tasks
 
   # Client API
 
@@ -69,31 +75,32 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
   - {:ok, [task_ids]} on success
   """
   def queue_initial_tasks(execution_id, workflow_module, initial_steps, inputs) do
-    task_ids = Enum.map(initial_steps, fn step_name ->
-      task = %{
-        workflow_module: workflow_module,
-        step_name: step_name,
-        inputs: inputs,
-        context: %{}
-      }
+    task_ids =
+      Enum.map(initial_steps, fn step_name ->
+        task = %{
+          workflow_module: workflow_module,
+          step_name: step_name,
+          inputs: inputs,
+          context: %{}
+        }
 
-      {:ok, task_id} = queue_task(execution_id, task)
-      task_id
-    end)
+        {:ok, task_id} = queue_task(execution_id, task)
+        task_id
+      end)
 
     {:ok, task_ids}
   end
 
   @doc """
   Poll for next available task (long-polling support).
-  
+
   Workers call this to get work. If no task is available immediately,
   the call will block up to timeout_ms waiting for a task to become available.
-  
+
   ## Parameters
   - worker_id: Worker requesting task
   - timeout_ms: How long to wait for task (max 30s)
-  
+
   ## Returns
   - {:ok, task} if task available
   - {:error, :timeout} if no task available within timeout
@@ -105,9 +112,9 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
 
   @doc """
   Submit task result from worker.
-  
+
   Marks the task as completed and notifies the execution engine.
-  
+
   ## Parameters
   - task_id: Task identifier
   - worker_id: Worker that completed the task
@@ -119,7 +126,7 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
 
   @doc """
   Cancel pending tasks for an execution.
-  
+
   Used when execution is cancelled or fails.
   """
   def cancel_tasks(execution_id) do
@@ -140,12 +147,13 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     # Create ETS tables for task management
     # If tables already exist from a previous crashed instance, reuse them
     for {table, opts} <- [
-      {@task_queue_table, [:named_table, :bag, :public, read_concurrency: true]},
-      {@execution_worker_mapping_table, [:named_table, :set, :public, read_concurrency: true]},
-      {@pending_polls_table, [:named_table, :bag, :public]},
-      {@task_metadata_table, [:named_table, :set, :public, read_concurrency: true]},
-      {@active_tasks_table, [:named_table, :set, :public, read_concurrency: true]}
-    ] do
+          {@task_queue_table, [:named_table, :bag, :public, read_concurrency: true]},
+          {@execution_worker_mapping_table,
+           [:named_table, :set, :public, read_concurrency: true]},
+          {@pending_polls_table, [:named_table, :bag, :public]},
+          {@task_metadata_table, [:named_table, :set, :public, read_concurrency: true]},
+          {@active_tasks_table, [:named_table, :set, :public, read_concurrency: true]}
+        ] do
       try do
         :ets.new(table, opts)
       rescue
@@ -163,13 +171,14 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     task_id = generate_task_id()
     retry_count = Map.get(task, :retry_count, 0)
 
-    task_with_id = Map.merge(task, %{
-      task_id: task_id,
-      execution_id: execution_id,
-      queued_at: System.system_time(:millisecond),
-      status: :pending,
-      retry_count: retry_count
-    })
+    task_with_id =
+      Map.merge(task, %{
+        task_id: task_id,
+        execution_id: execution_id,
+        queued_at: System.system_time(:millisecond),
+        status: :pending,
+        retry_count: retry_count
+      })
 
     # Store task metadata for later lookup (including inputs/context for DLQ)
     metadata = %{
@@ -180,18 +189,22 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
       inputs: Map.get(task, :inputs, %{}),
       context: Map.get(task, :context, %{})
     }
+
     :ets.insert(@task_metadata_table, {task_id, metadata})
 
     # Add to queue
     :ets.insert(@task_queue_table, {execution_id, task_with_id})
 
-    Logger.debug("Task queued: #{task_id} for execution #{execution_id}, step: #{metadata.step_name}, retry: #{retry_count}")
+    Logger.debug(
+      "Task queued: #{task_id} for execution #{execution_id}, step: #{metadata.step_name}, retry: #{retry_count}"
+    )
 
     # Check if any workers are waiting (long-polling)
     notify_waiting_workers(execution_id)
 
     # Telemetry: task queued
     queue_depth = :ets.info(@task_queue_table, :size)
+
     :telemetry.execute(
       [:cerebelum, :tasks, :queued],
       %{count: queue_depth},
@@ -228,7 +241,9 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
 
   @impl true
   def handle_call({:submit_result, task_id, worker_id, result}, _from, state) do
-    Logger.info("Task result received: #{task_id} from worker #{worker_id}, status: #{result.status}")
+    Logger.info(
+      "Task result received: #{task_id} from worker #{worker_id}, status: #{result.status}"
+    )
 
     # Remove from active tasks (no longer needs timeout monitoring)
     :ets.delete(@active_tasks_table, task_id)
@@ -241,10 +256,14 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
 
         # Telemetry: task completed
         queue_depth = :ets.info(@task_queue_table, :size)
+
         :telemetry.execute(
           [:cerebelum, :tasks, :completed],
           %{count: queue_depth},
-          %{execution_id: Map.get(metadata, :execution_id), step_name: Map.get(metadata, :step_name)}
+          %{
+            execution_id: Map.get(metadata, :execution_id),
+            step_name: Map.get(metadata, :step_name)
+          }
         )
 
         # Return metadata along with result for further processing
@@ -260,9 +279,9 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
   def handle_call({:cancel_tasks, execution_id}, _from, state) do
     # Remove all pending tasks for this execution
     :ets.match_delete(@task_queue_table, {execution_id, :_})
-    
+
     Logger.info("Cancelled all tasks for execution #{execution_id}")
-    
+
     {:reply, :ok, state}
   end
 
@@ -271,13 +290,13 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     pending_tasks = :ets.tab2list(@task_queue_table) |> length()
     pending_polls = :ets.tab2list(@pending_polls_table) |> length()
     active_executions = :ets.tab2list(@execution_worker_mapping_table) |> length()
-    
+
     stats = %{
       pending_tasks: pending_tasks,
       pending_polls: pending_polls,
       active_executions: active_executions
     }
-    
+
     {:reply, stats, state}
   end
 
@@ -320,7 +339,9 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
               retry_task(task_info, retry_count + 1)
             else
               # Max retries exceeded - move to DLQ and fail the execution
-              Logger.error("Task #{task_id} exceeded max retries (#{@max_retries}), moving to DLQ")
+              Logger.error(
+                "Task #{task_id} exceeded max retries (#{@max_retries}), moving to DLQ"
+              )
 
               execution_id = Map.get(metadata, :execution_id)
               step_name = Map.get(metadata, :step_name)
@@ -384,7 +405,9 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
 
     {:ok, _task_id} = queue_task(execution_id, retry_task_data)
 
-    Logger.info("Task re-queued for execution #{execution_id}, step: #{task_info.step_name}, retry: #{retry_count}")
+    Logger.info(
+      "Task re-queued for execution #{execution_id}, step: #{task_info.step_name}, retry: #{retry_count}"
+    )
 
     {:noreply, state}
   end
@@ -394,7 +417,9 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
   defp get_next_task_for_worker(worker_id) do
     # 1. Try sticky routing first (tasks from executions this worker already handles)
     case get_sticky_task(worker_id) do
-      {:ok, task} -> {:ok, task}
+      {:ok, task} ->
+        {:ok, task}
+
       :no_sticky_tasks ->
         # 2. Get any available task
         get_any_task(worker_id)
@@ -406,11 +431,11 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     case :ets.lookup(@execution_worker_mapping_table, worker_id) do
       [] ->
         :no_sticky_tasks
-        
+
       executions ->
         # Check if any of these executions have pending tasks
         execution_ids = Enum.map(executions, fn {_, exec_id} -> exec_id end)
-        
+
         Enum.find_value(execution_ids, :no_sticky_tasks, fn exec_id ->
           case pop_task_for_execution(exec_id, worker_id) do
             {:ok, task} -> {:ok, task}
@@ -425,7 +450,7 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     case :ets.first(@task_queue_table) do
       :"$end_of_table" ->
         :no_tasks
-        
+
       execution_id ->
         pop_task_for_execution(execution_id, worker_id)
     end
@@ -435,14 +460,14 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     case :ets.lookup(@task_queue_table, execution_id) do
       [] ->
         :empty
-        
+
       [{^execution_id, task} | _] ->
         # Remove task from queue
         :ets.delete_object(@task_queue_table, {execution_id, task})
-        
+
         # Record that this worker is handling this execution (sticky routing)
         :ets.insert(@execution_worker_mapping_table, {worker_id, execution_id})
-        
+
         {:ok, task}
     end
   end
@@ -453,7 +478,7 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
       [[preferred_worker_id]] ->
         # Notify preferred worker if they're waiting
         notify_worker_if_waiting(preferred_worker_id)
-        
+
       [] ->
         # No preferred worker, notify any waiting worker
         notify_any_waiting_worker()
@@ -486,7 +511,7 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     case :ets.first(@pending_polls_table) do
       :"$end_of_table" ->
         :ok
-        
+
       worker_id ->
         notify_worker_if_waiting(worker_id)
     end
@@ -508,15 +533,19 @@ defmodule Cerebelum.Infrastructure.TaskRouter do
     execution_id = task_info.execution_id
 
     # Calculate exponential backoff delay
-    backoff_ms = @retry_backoff_base_ms * :math.pow(2, new_retry_count - 1) |> round()
+    backoff_ms = (@retry_backoff_base_ms * :math.pow(2, new_retry_count - 1)) |> round()
 
     Logger.debug("Scheduling retry for task after #{backoff_ms}ms backoff")
 
     # Re-queue the task with updated retry count after backoff
-    Process.send_after(self(), {:requeue_task, execution_id, task_info, new_retry_count}, backoff_ms)
+    Process.send_after(
+      self(),
+      {:requeue_task, execution_id, task_info, new_retry_count},
+      backoff_ms
+    )
   end
 
   defp generate_task_id do
-    "task_#{System.unique_integer([:positive])}_#{:rand.uniform(999999)}"
+    "task_#{System.unique_integer([:positive])}_#{:rand.uniform(999_999)}"
   end
 end

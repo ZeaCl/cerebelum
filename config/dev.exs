@@ -5,7 +5,8 @@ config :cerebelum, Cerebelum.Repo,
   database: "cerebelum_core_dev",
   username: "dev",
   hostname: "localhost",
-  password: "",  # Add password if needed
+  # Add password if needed
+  password: "",
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
@@ -13,4 +14,5 @@ config :cerebelum, Cerebelum.Repo,
 # Set to true if you need to test multi-language SDK workers
 config :cerebelum,
   enable_grpc_server: true,
-  grpc_port: 9090  # Using 9090 instead of 50051 for testing
+  # Using 9090 instead of 50051 for testing
+  grpc_port: 9090

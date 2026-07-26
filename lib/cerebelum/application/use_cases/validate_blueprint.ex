@@ -68,10 +68,16 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprint do
 
     # Return result
     if errors == [] do
-      Logger.info("Blueprint validated successfully: #{Map.get(blueprint, :workflow_module, "unknown")}")
+      Logger.info(
+        "Blueprint validated successfully: #{Map.get(blueprint, :workflow_module, "unknown")}"
+      )
+
       {:ok, %{workflow_hash: workflow_hash, errors: [], warnings: warnings}}
     else
-      Logger.warning("Blueprint validation failed: #{Map.get(blueprint, :workflow_module, "unknown")}, errors: #{length(errors)}")
+      Logger.warning(
+        "Blueprint validation failed: #{Map.get(blueprint, :workflow_module, "unknown")}, errors: #{length(errors)}"
+      )
+
       {:error, %{errors: errors, warnings: warnings}}
     end
   end
@@ -303,6 +309,7 @@ defmodule Cerebelum.Application.UseCases.ValidateBlueprint do
 
     # Convert to JSON and hash
     json = Jason.encode!(hash_input, sort_maps: true)
+
     :crypto.hash(:sha256, json)
     |> Base.encode16(case: :lower)
   end

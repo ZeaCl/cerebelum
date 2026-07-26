@@ -26,7 +26,10 @@ defmodule Cerebelum.API.WorkerController do
 
     case Cerebelum.Infrastructure.WorkerRegistry.register_worker(worker_id, worker_attrs) do
       :ok ->
-        Logger.info("Worker registered: #{worker_id} at #{url} with #{length(workflows)} workflows")
+        Logger.info(
+          "Worker registered: #{worker_id} at #{url} with #{length(workflows)} workflows"
+        )
+
         json(conn, %{ok: true})
 
       {:error, reason} ->

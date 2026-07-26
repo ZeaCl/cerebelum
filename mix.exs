@@ -37,14 +37,14 @@ defmodule Cerebelum.MixProject do
           "docs/tutorials/01-first-workflow.md"
         ],
         groups_for_modules: [
-          "Core": [Cerebelum, Cerebelum.Workflow],
-          "DSL": [
+          Core: [Cerebelum, Cerebelum.Workflow],
+          DSL: [
             Cerebelum.Workflow.DSL,
             Cerebelum.Workflow.DSL.Timeline,
             Cerebelum.Workflow.DSL.Diverge,
             Cerebelum.Workflow.DSL.Branch
           ],
-          "Execution": [
+          Execution: [
             Cerebelum.Execution.Engine,
             Cerebelum.Execution.Supervisor,
             Cerebelum.Context
@@ -53,7 +53,7 @@ defmodule Cerebelum.MixProject do
             Cerebelum.EventStore,
             Cerebelum.Events
           ],
-          "Metrics": [
+          Metrics: [
             Cerebelum.Metrics,
             Cerebelum.Database.Metrics
           ]
@@ -74,9 +74,21 @@ defmodule Cerebelum.MixProject do
   defp aliases do
     [
       "test.clean": ["ecto.drop --quiet", "ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "coveralls.clean": ["ecto.drop --quiet", "ecto.create --quiet", "ecto.migrate --quiet", "coveralls"],
-      "coveralls.html.clean": ["ecto.drop --quiet", "ecto.create --quiet", "ecto.migrate --quiet", "coveralls.html"],
-      "protobuf.generate": ["cmd protoc --elixir_out=plugins=grpc:./lib --proto_path=priv/protos priv/protos/*.proto"]
+      "coveralls.clean": [
+        "ecto.drop --quiet",
+        "ecto.create --quiet",
+        "ecto.migrate --quiet",
+        "coveralls"
+      ],
+      "coveralls.html.clean": [
+        "ecto.drop --quiet",
+        "ecto.create --quiet",
+        "ecto.migrate --quiet",
+        "coveralls.html"
+      ],
+      "protobuf.generate": [
+        "cmd protoc --elixir_out=plugins=grpc:./lib --proto_path=priv/protos priv/protos/*.proto"
+      ]
     ]
   end
 

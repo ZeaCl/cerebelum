@@ -1,10 +1,10 @@
 defmodule Cerebelum.API.Endpoint do
   use Phoenix.Endpoint, otp_app: :cerebelum
 
-  plug Plug.RequestId
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug(Plug.RequestId)
+  plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
 
-  plug CORSPlug,
+  plug(CORSPlug,
     origin: [
       "http://localhost:4000",
       "http://localhost:4001",
@@ -13,14 +13,16 @@ defmodule Cerebelum.API.Endpoint do
     ],
     headers: ["Authorization", "Content-Type", "Accept"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  )
 
-  plug Plug.Parsers,
+  plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
+  )
 
-  plug Plug.MethodOverride
-  plug Plug.Head
+  plug(Plug.MethodOverride)
+  plug(Plug.Head)
 
-  plug Cerebelum.API.Router
+  plug(Cerebelum.API.Router)
 end

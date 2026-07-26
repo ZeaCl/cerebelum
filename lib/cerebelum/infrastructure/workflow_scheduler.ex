@@ -123,9 +123,7 @@ defmodule Cerebelum.Infrastructure.WorkflowScheduler do
       if resurrection_enabled?() do
         scan_interval_ms = get_scan_interval_ms()
 
-        Logger.info(
-          "WorkflowScheduler started, will scan every #{scan_interval_ms}ms"
-        )
+        Logger.info("WorkflowScheduler started, will scan every #{scan_interval_ms}ms")
 
         # Schedule first scan
         timer_ref = schedule_next_scan(scan_interval_ms)
@@ -249,7 +247,8 @@ defmodule Cerebelum.Infrastructure.WorkflowScheduler do
           paused_workflows,
           &resurrect_workflow/1,
           max_concurrency: @max_concurrent_resurrections,
-          timeout: 30_000  # 30s timeout per resurrection
+          # 30s timeout per resurrection
+          timeout: 30_000
         )
         |> Enum.to_list()
 

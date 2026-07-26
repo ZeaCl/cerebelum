@@ -94,28 +94,28 @@ defmodule Cerebelum.Persistence.WorkflowPause do
         }
 
   schema "workflow_pauses" do
-    field :execution_id, :string
-    field :workflow_module, :string
-    field :pause_type, :string
-    field :resume_at, :utc_datetime
-    field :hibernated, :boolean, default: false
+    field(:execution_id, :string)
+    field(:workflow_module, :string)
+    field(:pause_type, :string)
+    field(:resume_at, :utc_datetime)
+    field(:hibernated, :boolean, default: false)
 
     # State reconstruction
-    field :event_version, :integer
-    field :current_step_index, :integer
-    field :current_step_name, :string
+    field(:event_version, :integer)
+    field(:current_step_index, :integer)
+    field(:current_step_name, :string)
 
     # Sleep-specific
-    field :sleep_duration_ms, :integer
-    field :sleep_started_at, :utc_datetime
+    field(:sleep_duration_ms, :integer)
+    field(:sleep_started_at, :utc_datetime)
 
     # Approval-specific
-    field :approval_type, :string
-    field :approval_timeout_ms, :integer
+    field(:approval_type, :string)
+    field(:approval_timeout_ms, :integer)
 
     # Resurrection tracking
-    field :resurrection_attempts, :integer, default: 0
-    field :last_resurrection_error, :string
+    field(:resurrection_attempts, :integer, default: 0)
+    field(:last_resurrection_error, :string)
 
     timestamps()
   end

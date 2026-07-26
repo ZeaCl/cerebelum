@@ -59,7 +59,8 @@ defmodule Cerebelum.Execution.Engine do
     %{
       id: __MODULE__,
       start: {__MODULE__, :start_link, [opts]},
-      restart: :transient,  # Changed from :temporary to enable resurrection
+      # Changed from :temporary to enable resurrection
+      restart: :transient,
       type: :worker
     }
   end
@@ -189,7 +190,10 @@ defmodule Cerebelum.Execution.Engine do
         Logger.info("Resuming execution: #{resumed_data.context.execution_id}")
 
         # Register with execution registry
-        case Cerebelum.Execution.Registry.register_execution(resumed_data.context.execution_id, self()) do
+        case Cerebelum.Execution.Registry.register_execution(
+               resumed_data.context.execution_id,
+               self()
+             ) do
           :ok ->
             # Determine resume state and prepare actions
             {resume_state, resume_data, actions} = prepare_resume(resumed_data)
@@ -281,26 +285,24 @@ defmodule Cerebelum.Execution.Engine do
 
     if remaining_ms <= 0 do
       # Sleep time has already elapsed - wake up immediately and advance
-      Logger.info(
-        "Sleep already elapsed for #{data.context.execution_id}, waking immediately"
-      )
+      Logger.info("Sleep already elapsed for #{data.context.execution_id}, waking immediately")
 
       # Clear sleep state and advance step
-      resumed_data = %{data |
-        sleep_duration_ms: nil,
-        sleep_started_at: nil,
-        sleep_step_name: nil,
-        sleep_result: nil
-      }
-      |> Data.advance_step()
+      resumed_data =
+        %{
+          data
+          | sleep_duration_ms: nil,
+            sleep_started_at: nil,
+            sleep_step_name: nil,
+            sleep_result: nil
+        }
+        |> Data.advance_step()
 
       # Continue execution
       {:executing_step, resumed_data, [{:next_event, :internal, :execute}]}
     else
       # Resume sleeping with remaining time
-      Logger.info(
-        "Resuming sleep for #{data.context.execution_id}, #{remaining_ms}ms remaining"
-      )
+      Logger.info("Resuming sleep for #{data.context.execution_id}, #{remaining_ms}ms remaining")
 
       # Use state_timeout to wake up after remaining time
       {:sleeping, data, [{:state_timeout, remaining_ms, :wake_up}]}
@@ -312,9 +314,7 @@ defmodule Cerebelum.Execution.Engine do
     case data.approval_timeout_ms do
       nil ->
         # No timeout - just wait indefinitely
-        Logger.info(
-          "Resuming approval wait for #{data.context.execution_id} (no timeout)"
-        )
+        Logger.info("Resuming approval wait for #{data.context.execution_id} (no timeout)")
 
         {:waiting_for_approval, data, []}
 
@@ -326,9 +326,7 @@ defmodule Cerebelum.Execution.Engine do
 
         if remaining_ms <= 0 do
           # Approval has already timed out - fail immediately
-          Logger.warning(
-            "Approval timeout already elapsed for #{data.context.execution_id}"
-          )
+          Logger.warning("Approval timeout already elapsed for #{data.context.execution_id}")
 
           error_info = %Cerebelum.Execution.ErrorInfo{
             kind: :approval_timeout,

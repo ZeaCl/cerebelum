@@ -11,19 +11,19 @@ defmodule Cerebelum.Infrastructure.Schemas.DLQItem do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "dlq_items" do
-    field :task_id, :string
-    field :execution_id, :string
-    field :workflow_module, :string
-    field :step_name, :string
-    field :error_kind, :string
-    field :error_message, :string
-    field :error_stacktrace, :string
-    field :retry_count, :integer
-    field :task_inputs, :map
-    field :task_context, :map
-    field :status, :string, default: "pending"
-    field :resolved_at, :utc_datetime
-    field :resolved_by, :string
+    field(:task_id, :string)
+    field(:execution_id, :string)
+    field(:workflow_module, :string)
+    field(:step_name, :string)
+    field(:error_kind, :string)
+    field(:error_message, :string)
+    field(:error_stacktrace, :string)
+    field(:retry_count, :integer)
+    field(:task_inputs, :map)
+    field(:task_context, :map)
+    field(:status, :string, default: "pending")
+    field(:resolved_at, :utc_datetime)
+    field(:resolved_by, :string)
 
     timestamps(type: :utc_datetime)
   end

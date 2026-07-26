@@ -36,6 +36,7 @@ defmodule Cerebelum.Execution.StateReconstructor do
   require Logger
   alias Cerebelum.EventStore
   alias Cerebelum.Execution.Engine
+
   alias Cerebelum.Events.{
     ExecutionStartedEvent,
     StepExecutedEvent,
@@ -251,7 +252,8 @@ defmodule Cerebelum.Execution.StateReconstructor do
       results: %{},
       current_step_index: 0,
       iteration: 0,
-      event_version: 1,  # Started event is version 0, so we're at 1
+      # Started event is version 0, so we're at 1
+      event_version: 1,
       error: nil,
       sleep_duration_ms: nil,
       sleep_started_at: nil,
@@ -310,29 +312,34 @@ defmodule Cerebelum.Execution.StateReconstructor do
   defp apply_event_to_engine_data(%SleepStartedEvent{} = event, data) do
     # Convert DateTime to milliseconds since epoch (wall clock time)
     # Handle both DateTime structs and ISO8601 strings from deserialization
-    started_at_ms = case event.timestamp do
-      %DateTime{} = dt -> DateTime.to_unix(dt, :millisecond)
-      timestamp_string when is_binary(timestamp_string) ->
-        {:ok, dt, _} = DateTime.from_iso8601(timestamp_string)
-        DateTime.to_unix(dt, :millisecond)
-    end
+    started_at_ms =
+      case event.timestamp do
+        %DateTime{} = dt ->
+          DateTime.to_unix(dt, :millisecond)
 
-    %{data |
-      sleep_duration_ms: event.duration_ms,
-      sleep_started_at: started_at_ms,
-      sleep_step_name: atomize(event.step_name),
-      event_version: data.event_version + 1
+        timestamp_string when is_binary(timestamp_string) ->
+          {:ok, dt, _} = DateTime.from_iso8601(timestamp_string)
+          DateTime.to_unix(dt, :millisecond)
+      end
+
+    %{
+      data
+      | sleep_duration_ms: event.duration_ms,
+        sleep_started_at: started_at_ms,
+        sleep_step_name: atomize(event.step_name),
+        event_version: data.event_version + 1
     }
   end
 
   defp apply_event_to_engine_data(%SleepCompletedEvent{} = _event, data) do
     # Clear sleep state and advance step
-    %{data |
-      sleep_duration_ms: nil,
-      sleep_started_at: nil,
-      sleep_step_name: nil,
-      sleep_result: nil,
-      event_version: data.event_version + 1
+    %{
+      data
+      | sleep_duration_ms: nil,
+        sleep_started_at: nil,
+        sleep_step_name: nil,
+        sleep_result: nil,
+        event_version: data.event_version + 1
     }
     |> Engine.Data.advance_step()
   end
@@ -341,25 +348,27 @@ defmodule Cerebelum.Execution.StateReconstructor do
     # Convert DateTime to milliseconds since epoch (wall clock time)
     started_at_ms = DateTime.to_unix(event.timestamp, :millisecond)
 
-    %{data |
-      approval_type: event.approval_type,
-      approval_data: event.approval_data,
-      approval_step_name: atomize(event.step_name),
-      approval_timeout_ms: event.timeout_ms,
-      approval_started_at: started_at_ms,
-      event_version: data.event_version + 1
+    %{
+      data
+      | approval_type: event.approval_type,
+        approval_data: event.approval_data,
+        approval_step_name: atomize(event.step_name),
+        approval_timeout_ms: event.timeout_ms,
+        approval_started_at: started_at_ms,
+        event_version: data.event_version + 1
     }
   end
 
   defp apply_event_to_engine_data(%ApprovalReceivedEvent{} = _event, data) do
     # Clear approval state and advance step
-    %{data |
-      approval_type: nil,
-      approval_data: nil,
-      approval_step_name: nil,
-      approval_timeout_ms: nil,
-      approval_started_at: nil,
-      event_version: data.event_version + 1
+    %{
+      data
+      | approval_type: nil,
+        approval_data: nil,
+        approval_step_name: nil,
+        approval_timeout_ms: nil,
+        approval_started_at: nil,
+        event_version: data.event_version + 1
     }
     |> Engine.Data.advance_step()
   end
@@ -373,13 +382,14 @@ defmodule Cerebelum.Execution.StateReconstructor do
       execution_id: data.context.execution_id
     }
 
-    %{data |
-      approval_type: nil,
-      approval_data: nil,
-      approval_step_name: nil,
-      approval_timeout_ms: nil,
-      approval_started_at: nil,
-      event_version: data.event_version + 1
+    %{
+      data
+      | approval_type: nil,
+        approval_data: nil,
+        approval_step_name: nil,
+        approval_timeout_ms: nil,
+        approval_started_at: nil,
+        event_version: data.event_version + 1
     }
     |> Engine.Data.mark_failed(error_info)
   end
@@ -393,13 +403,14 @@ defmodule Cerebelum.Execution.StateReconstructor do
       execution_id: data.context.execution_id
     }
 
-    %{data |
-      approval_type: nil,
-      approval_data: nil,
-      approval_step_name: nil,
-      approval_timeout_ms: nil,
-      approval_started_at: nil,
-      event_version: data.event_version + 1
+    %{
+      data
+      | approval_type: nil,
+        approval_data: nil,
+        approval_step_name: nil,
+        approval_timeout_ms: nil,
+        approval_started_at: nil,
+        event_version: data.event_version + 1
     }
     |> Engine.Data.mark_failed(error_info)
   end
@@ -572,18 +583,22 @@ defmodule Cerebelum.Execution.StateReconstructor do
 
   # Helper to safely convert to atom
   defp atomize(value) when is_atom(value), do: value
+
   defp atomize(value) when is_binary(value) do
     try do
       String.to_existing_atom(value)
     rescue
-      ArgumentError -> value  # Keep as string if atom doesn't exist
+      # Keep as string if atom doesn't exist
+      ArgumentError -> value
     end
   end
+
   defp atomize(value), do: value
 
   # Helper to reconstruct tuples that were serialized as lists
   defp reconstruct_result(["ok" | rest]), do: {:ok, reconstruct_value(rest)}
   defp reconstruct_result(["error" | rest]), do: {:error, reconstruct_value(rest)}
+
   defp reconstruct_result(value) when is_list(value) do
     # If it's a list with exactly 2 elements and first is a string, might be a tuple
     case value do
@@ -592,18 +607,24 @@ defmodule Cerebelum.Execution.StateReconstructor do
         try do
           {String.to_existing_atom(first), reconstruct_value(second)}
         rescue
-          ArgumentError -> value  # Keep as list if not a valid atom
+          # Keep as list if not a valid atom
+          ArgumentError -> value
         end
-      _ -> value
+
+      _ ->
+        value
     end
   end
+
   defp reconstruct_result(value), do: value
 
   # Helper to recursively reconstruct nested values
   defp reconstruct_value([single]), do: single
   defp reconstruct_value(value) when is_list(value), do: Enum.map(value, &reconstruct_value/1)
+
   defp reconstruct_value(value) when is_map(value) do
     Map.new(value, fn {k, v} -> {atomize(k), reconstruct_value(v)} end)
   end
+
   defp reconstruct_value(value), do: value
 end

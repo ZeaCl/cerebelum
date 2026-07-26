@@ -1,7 +1,7 @@
 defmodule Cerebelum.Infrastructure.WorkerServiceServer do
   @moduledoc """
   gRPC server implementation for WorkerService.
-  
+
   Handles communication between Core BEAM and SDK workers in different languages
   (Kotlin, TypeScript, Python). Provides RPCs for:
   - Worker registration and lifecycle
@@ -80,18 +80,20 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     Logger.debug("Heartbeat from worker: #{request.worker_id}")
 
     # Convert protobuf status enum to atom
-    status = case request.status do
-      :IDLE -> :idle
-      :BUSY -> :busy
-      :DRAINING -> :draining
-      _ -> :idle
-    end
+    status =
+      case request.status do
+        :IDLE -> :idle
+        :BUSY -> :busy
+        :DRAINING -> :draining
+        _ -> :idle
+      end
 
     Cerebelum.Infrastructure.WorkerRegistry.heartbeat(request.worker_id, status)
 
     %HeartbeatResponse{
       acknowledged: true,
-      commands: []  # No commands for now
+      # No commands for now
+      commands: []
     }
   end
 
@@ -116,7 +118,9 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
   """
   @spec poll_for_task(PollRequest.t(), GRPC.Server.Stream.t()) :: Task.t()
   def poll_for_task(request, _stream) do
-    Logger.debug("Worker #{request.worker_id} polling for tasks (timeout: #{request.timeout_ms}ms)")
+    Logger.debug(
+      "Worker #{request.worker_id} polling for tasks (timeout: #{request.timeout_ms}ms)"
+    )
 
     timeout = request.timeout_ms || 10_000
 
@@ -153,7 +157,9 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
   """
   @spec submit_result(TaskResult.t(), GRPC.Server.Stream.t()) :: Ack.t()
   def submit_result(result, _stream) do
-    Logger.info("Task result submitted: #{result.task_id} from worker #{result.worker_id}, status: #{result.status}")
+    Logger.info(
+      "Task result submitted: #{result.task_id} from worker #{result.worker_id}, status: #{result.status}"
+    )
 
     # Convert protobuf result to internal format
     internal_result = %{
@@ -168,10 +174,10 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
 
     # Submit result to TaskRouter and get task metadata
     case Cerebelum.Infrastructure.TaskRouter.submit_result(
-      result.task_id,
-      result.worker_id,
-      internal_result
-    ) do
+           result.task_id,
+           result.worker_id,
+           internal_result
+         ) do
       {:ok, metadata} ->
         # ✅ NEW: Notify WorkflowDelegatingWorkflow instead of ExecutionStateManager
         # This allows the Engine to handle the result properly
@@ -179,91 +185,101 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
         task_id = result.task_id
 
         # Convert result to format expected by WorkflowDelegatingWorkflow
-        workflow_result = case internal_result.status do
-          :success ->
-            Logger.info("Task result: SUCCESS status, result=#{inspect(internal_result.result)}")
-            # Check if result contains a sleep/approval marker (workaround for protobuf)
-            result_data = internal_result.result
+        workflow_result =
+          case internal_result.status do
+            :success ->
+              Logger.info(
+                "Task result: SUCCESS status, result=#{inspect(internal_result.result)}"
+              )
 
-            cond do
-              # Check for sleep marker (deprecated, kept for backward compatibility)
-              is_map(result_data) && Map.get(result_data, "__cerebelum_sleep_request__") == true ->
-                duration_ms = Map.get(result_data, "duration_ms", 0)
-                data = Map.get(result_data, "data", %{})
-                Logger.info("Detected sleep request (marker): #{duration_ms}ms")
+              # Check if result contains a sleep/approval marker (workaround for protobuf)
+              result_data = internal_result.result
+
+              cond do
+                # Check for sleep marker (deprecated, kept for backward compatibility)
+                is_map(result_data) && Map.get(result_data, "__cerebelum_sleep_request__") == true ->
+                  duration_ms = Map.get(result_data, "duration_ms", 0)
+                  data = Map.get(result_data, "data", %{})
+                  Logger.info("Detected sleep request (marker): #{duration_ms}ms")
+                  {:sleep, duration_ms, data}
+
+                # Check for approval marker (deprecated, kept for backward compatibility)
+                is_map(result_data) &&
+                    Map.get(result_data, "__cerebelum_approval_request__") == true ->
+                  approval_data = %{
+                    type: Map.get(result_data, "approval_type", "manual"),
+                    data: Map.get(result_data, "data", %{}),
+                    timeout_ms: Map.get(result_data, "timeout_ms")
+                  }
+
+                  Logger.info("Detected approval request (marker): #{approval_data.type}")
+                  {:approval, approval_data}
+
+                # Standard Python SDK: step returns {"status": "waiting_for_approval", ...}
+                is_map(result_data) && Map.get(result_data, "status") == "waiting_for_approval" ->
+                  approval_data = %{
+                    type: Map.get(result_data, "approval_type", "manual"),
+                    data: Map.get(result_data, "data", result_data),
+                    timeout_ms: Map.get(result_data, "timeout_ms")
+                  }
+
+                  Logger.info("Detected approval request (status field) for step")
+                  {:approval, approval_data}
+
+                # Standard Python SDK: step returns {"status": "sleep", "duration_ms": N, ...}
+                is_map(result_data) && Map.get(result_data, "status") == "sleep" ->
+                  duration_ms = Map.get(result_data, "duration_ms", 0)
+                  data = Map.get(result_data, "data", %{})
+                  Logger.info("Detected sleep request (status field): #{duration_ms}ms")
+                  {:sleep, duration_ms, data}
+
+                # Normal success
+                true ->
+                  {:ok, result_data}
+              end
+
+            :failed ->
+              error = internal_result.error || %{message: "Unknown error"}
+              {:error, error[:message] || "Task failed"}
+
+            :timeout ->
+              {:error, :task_timeout}
+
+            :cancelled ->
+              {:error, :task_cancelled}
+
+            :sleep ->
+              # Extract sleep request from protobuf (when protobuf is regenerated)
+              sleep_req = result.sleep_request
+
+              if sleep_req do
+                duration_ms = sleep_req.duration_ms || 0
+                data = struct_to_map(sleep_req.data)
                 {:sleep, duration_ms, data}
+              else
+                {:error, "Sleep status without sleep_request"}
+              end
 
-              # Check for approval marker (deprecated, kept for backward compatibility)
-              is_map(result_data) && Map.get(result_data, "__cerebelum_approval_request__") == true ->
+            :approval ->
+              # Extract approval request from protobuf (when protobuf is regenerated)
+              approval_req = result.approval_request
+              Logger.info("Task result: APPROVAL status, approval_req=#{inspect(approval_req)}")
+
+              if approval_req do
                 approval_data = %{
-                  type: Map.get(result_data, "approval_type", "manual"),
-                  data: Map.get(result_data, "data", %{}),
-                  timeout_ms: Map.get(result_data, "timeout_ms")
+                  type: approval_req.approval_type || "manual",
+                  data: struct_to_map(approval_req.data),
+                  timeout_ms: approval_req.timeout_ms
                 }
-                Logger.info("Detected approval request (marker): #{approval_data.type}")
+
                 {:approval, approval_data}
+              else
+                {:error, "Approval status without approval_request"}
+              end
 
-              # Standard Python SDK: step returns {"status": "waiting_for_approval", ...}
-              is_map(result_data) && Map.get(result_data, "status") == "waiting_for_approval" ->
-                approval_data = %{
-                  type: Map.get(result_data, "approval_type", "manual"),
-                  data: Map.get(result_data, "data", result_data),
-                  timeout_ms: Map.get(result_data, "timeout_ms")
-                }
-                Logger.info("Detected approval request (status field) for step")
-                {:approval, approval_data}
-
-              # Standard Python SDK: step returns {"status": "sleep", "duration_ms": N, ...}
-              is_map(result_data) && Map.get(result_data, "status") == "sleep" ->
-                duration_ms = Map.get(result_data, "duration_ms", 0)
-                data = Map.get(result_data, "data", %{})
-                Logger.info("Detected sleep request (status field): #{duration_ms}ms")
-                {:sleep, duration_ms, data}
-
-              # Normal success
-              true ->
-                {:ok, result_data}
-            end
-
-          :failed ->
-            error = internal_result.error || %{message: "Unknown error"}
-            {:error, error[:message] || "Task failed"}
-
-          :timeout ->
-            {:error, :task_timeout}
-
-          :cancelled ->
-            {:error, :task_cancelled}
-
-          :sleep ->
-            # Extract sleep request from protobuf (when protobuf is regenerated)
-            sleep_req = result.sleep_request
-            if sleep_req do
-              duration_ms = sleep_req.duration_ms || 0
-              data = struct_to_map(sleep_req.data)
-              {:sleep, duration_ms, data}
-            else
-              {:error, "Sleep status without sleep_request"}
-            end
-
-          :approval ->
-            # Extract approval request from protobuf (when protobuf is regenerated)
-            approval_req = result.approval_request
-            Logger.info("Task result: APPROVAL status, approval_req=#{inspect(approval_req)}")
-            if approval_req do
-              approval_data = %{
-                type: approval_req.approval_type || "manual",
-                data: struct_to_map(approval_req.data),
-                timeout_ms: approval_req.timeout_ms
-              }
-              {:approval, approval_data}
-            else
-              {:error, "Approval status without approval_request"}
-            end
-
-          _ ->
-            {:error, :unknown_status}
-        end
+            _ ->
+              {:error, :unknown_status}
+          end
 
         # Notify the WorkflowDelegatingWorkflow that the task completed
         Cerebelum.WorkflowDelegatingWorkflow.notify_task_result(
@@ -272,7 +288,9 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
           workflow_result
         )
 
-        Logger.info("Notified WorkflowDelegatingWorkflow for execution #{execution_id}, task #{task_id}")
+        Logger.info(
+          "Notified WorkflowDelegatingWorkflow for execution #{execution_id}, task #{task_id}"
+        )
 
         %Ack{
           success: true,
@@ -312,10 +330,11 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     case Cerebelum.Application.UseCases.ValidateBlueprint.execute(internal_blueprint) do
       {:ok, result} ->
         # Store blueprint for later execution
-        :ok = Cerebelum.Infrastructure.BlueprintRegistry.store_blueprint(
-          blueprint.workflow_module,
-          internal_blueprint
-        )
+        :ok =
+          Cerebelum.Infrastructure.BlueprintRegistry.store_blueprint(
+            blueprint.workflow_module,
+            internal_blueprint
+          )
 
         Logger.info("Blueprint validated and stored: #{blueprint.workflow_module}")
 
@@ -363,14 +382,15 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
 
         # ✅ NEW: Use Engine instead of ExecutionStateManager
         # This gives us: events, resurrection, sleep, hibernation, OTP supervision
-        {:ok, pid} = Cerebelum.Execution.Supervisor.start_execution(
-          Cerebelum.WorkflowDelegatingWorkflow,
-          inputs,
-          # Pass blueprint and blueprint_name via context (NOT workflow_module to avoid overwrite)
-          blueprint: blueprint,
-          blueprint_name: request.workflow_module,
-          execution_mode: :distributed
-        )
+        {:ok, pid} =
+          Cerebelum.Execution.Supervisor.start_execution(
+            Cerebelum.WorkflowDelegatingWorkflow,
+            inputs,
+            # Pass blueprint and blueprint_name via context (NOT workflow_module to avoid overwrite)
+            blueprint: blueprint,
+            blueprint_name: request.workflow_module,
+            execution_mode: :distributed
+          )
 
         # Get execution_id from the Engine process
         execution_id = Cerebelum.Execution.Engine.get_execution_id(pid)
@@ -387,7 +407,9 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
         }
 
       {:error, :not_found} ->
-        Logger.error("Blueprint not found for workflow #{request.workflow_module}. Did you call SubmitBlueprint first?")
+        Logger.error(
+          "Blueprint not found for workflow #{request.workflow_module}. Did you call SubmitBlueprint first?"
+        )
 
         # Return error handle
         %ExecutionHandle{
@@ -409,7 +431,10 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
   Reconstructs the execution state from events and returns detailed information
   including progress, completed steps, outputs, and current state.
   """
-  @spec get_execution_status(Cerebelum.Worker.GetExecutionStatusRequest.t(), GRPC.Server.Stream.t()) ::
+  @spec get_execution_status(
+          Cerebelum.Worker.GetExecutionStatusRequest.t(),
+          GRPC.Server.Stream.t()
+        ) ::
           Cerebelum.Worker.ExecutionStatus.t()
   def get_execution_status(request, _stream) do
     execution_id = request.execution_id
@@ -471,7 +496,9 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
   @spec list_executions(Cerebelum.Worker.ListExecutionsRequest.t(), GRPC.Server.Stream.t()) ::
           Cerebelum.Worker.ListExecutionsResponse.t()
   def list_executions(request, _stream) do
-    Logger.info("Listing executions - filters: workflow=#{inspect(request.workflow_name)}, status=#{inspect(request.status)}")
+    Logger.info(
+      "Listing executions - filters: workflow=#{inspect(request.workflow_name)}, status=#{inspect(request.status)}"
+    )
 
     limit = if request.limit > 0, do: min(request.limit, 100), else: 50
     offset = max(request.offset, 0)
@@ -481,30 +508,32 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     # TODO: Add proper filtering and pagination in EventStore
 
     case Cerebelum.EventStore.list_executions(
-      workflow_name: request.workflow_name,
-      status: execution_state_to_atom(request.status),
-      limit: limit,
-      offset: offset
-    ) do
+           workflow_name: request.workflow_name,
+           status: execution_state_to_atom(request.status),
+           limit: limit,
+           offset: offset
+         ) do
       {:ok, execution_ids, total_count} ->
         # Build ExecutionStatus for each execution
-        executions = Enum.map(execution_ids, fn exec_id ->
-          case Cerebelum.Execution.StateReconstructor.reconstruct_to_engine_data(exec_id) do
-            {:ok, engine_data} ->
-              build_execution_status(exec_id, engine_data)
-            {:error, _reason} ->
-              # Return minimal status on error
-              %Cerebelum.Worker.ExecutionStatus{
-                execution_id: exec_id,
-                workflow_name: "unknown",
-                status: :EXECUTION_STATE_UNSPECIFIED,
-                current_step_index: 0,
-                total_steps: 0
-              }
-          end
-        end)
+        executions =
+          Enum.map(execution_ids, fn exec_id ->
+            case Cerebelum.Execution.StateReconstructor.reconstruct_to_engine_data(exec_id) do
+              {:ok, engine_data} ->
+                build_execution_status(exec_id, engine_data)
 
-        has_more = (offset + length(executions)) < total_count
+              {:error, _reason} ->
+                # Return minimal status on error
+                %Cerebelum.Worker.ExecutionStatus{
+                  execution_id: exec_id,
+                  workflow_name: "unknown",
+                  status: :EXECUTION_STATE_UNSPECIFIED,
+                  current_step_index: 0,
+                  total_steps: 0
+                }
+            end
+          end)
+
+        has_more = offset + length(executions) < total_count
 
         %Cerebelum.Worker.ListExecutionsResponse{
           executions: executions,
@@ -577,7 +606,9 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
 
   # Helper Functions
 
-  defp convert_workflow_definition(nil), do: %{timeline: [], diverge_rules: [], branch_rules: [], inputs: %{}}
+  defp convert_workflow_definition(nil),
+    do: %{timeline: [], diverge_rules: [], branch_rules: [], inputs: %{}}
+
   defp convert_workflow_definition(definition) do
     %{
       timeline: Enum.map(definition.timeline || [], &convert_step/1),
@@ -597,15 +628,16 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
   defp convert_diverge_rule(rule) do
     %{
       from_step: rule.from_step,
-      patterns: Enum.map(rule.patterns || [], fn pattern ->
-        # Parse pattern string as JSON if it looks like JSON
-        parsed_pattern = parse_pattern(pattern.pattern)
+      patterns:
+        Enum.map(rule.patterns || [], fn pattern ->
+          # Parse pattern string as JSON if it looks like JSON
+          parsed_pattern = parse_pattern(pattern.pattern)
 
-        %{
-          pattern: parsed_pattern,
-          target: pattern.target
-        }
-      end)
+          %{
+            pattern: parsed_pattern,
+            target: pattern.target
+          }
+        end)
     }
   end
 
@@ -614,25 +646,29 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     case Jason.decode(pattern_str) do
       {:ok, decoded} when is_map(decoded) ->
         decoded
+
       _ ->
         # Not JSON, keep as string
         pattern_str
     end
   end
+
   defp parse_pattern(pattern), do: pattern
 
   defp convert_branch_rule(rule) do
     %{
       from_step: rule.from_step,
-      branches: Enum.map(rule.branches || [], fn branch ->
-        %{
-          condition: branch.condition,
-          action: %{
-            type: "skip_to",  # Default action type
-            target_step: branch.target
+      branches:
+        Enum.map(rule.branches || [], fn branch ->
+          %{
+            condition: branch.condition,
+            action: %{
+              # Default action type
+              type: "skip_to",
+              target_step: branch.target
+            }
           }
-        }
-      end)
+        end)
     }
   end
 
@@ -641,54 +677,71 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     # For now, we'll use a simple conversion
     # TODO: Implement proper map-to-Struct conversion
     %Google.Protobuf.Struct{
-      fields: Enum.into(map, %{}, fn {k, v} ->
-        {to_string(k), value_to_proto_value(v)}
-      end)
+      fields:
+        Enum.into(map, %{}, fn {k, v} ->
+          {to_string(k), value_to_proto_value(v)}
+        end)
     }
   end
+
   defp convert_to_struct(_), do: nil
 
   defp value_to_proto_value(v) when is_binary(v) do
     %Google.Protobuf.Value{kind: {:string_value, v}}
   end
+
   defp value_to_proto_value(v) when is_number(v) do
     %Google.Protobuf.Value{kind: {:number_value, v * 1.0}}
   end
+
   defp value_to_proto_value(v) when is_boolean(v) do
     %Google.Protobuf.Value{kind: {:bool_value, v}}
   end
+
   defp value_to_proto_value(nil) do
     %Google.Protobuf.Value{kind: {:null_value, :NULL_VALUE}}
   end
+
   defp value_to_proto_value(v) when is_map(v) do
     %Google.Protobuf.Value{
       kind: {:struct_value, convert_to_struct(v)}
     }
   end
+
   defp value_to_proto_value(v) when is_list(v) do
     %Google.Protobuf.Value{
-      kind: {:list_value, %Google.Protobuf.ListValue{
-        values: Enum.map(v, &value_to_proto_value/1)
-      }}
+      kind:
+        {:list_value,
+         %Google.Protobuf.ListValue{
+           values: Enum.map(v, &value_to_proto_value/1)
+         }}
     }
   end
+
   defp value_to_proto_value(v) do
     # Fallback: convert to string
     %Google.Protobuf.Value{kind: {:string_value, inspect(v)}}
   end
 
   defp struct_to_map(nil), do: %{}
+
   defp struct_to_map(%Google.Protobuf.Struct{fields: fields}) do
     Enum.into(fields, %{}, fn {k, v} -> {k, proto_value_to_value(v)} end)
   end
+
   defp struct_to_map(_), do: %{}
 
   defp proto_value_to_value(%Google.Protobuf.Value{kind: {:string_value, v}}), do: v
   defp proto_value_to_value(%Google.Protobuf.Value{kind: {:number_value, v}}), do: v
   defp proto_value_to_value(%Google.Protobuf.Value{kind: {:bool_value, v}}), do: v
   defp proto_value_to_value(%Google.Protobuf.Value{kind: {:null_value, _}}), do: nil
-  defp proto_value_to_value(%Google.Protobuf.Value{kind: {:struct_value, v}}), do: struct_to_map(v)
-  defp proto_value_to_value(%Google.Protobuf.Value{kind: {:list_value, %{values: vs}}}), do: Enum.map(vs, &proto_value_to_value/1)
+
+  defp proto_value_to_value(%Google.Protobuf.Value{kind: {:struct_value, v}}),
+    do: struct_to_map(v)
+
+  defp proto_value_to_value(%Google.Protobuf.Value{kind: {:list_value, %{values: vs}}}),
+    do: Enum.map(vs, &proto_value_to_value/1)
+
   defp proto_value_to_value(_), do: nil
 
   defp convert_task_status(:SUCCESS), do: :success
@@ -700,6 +753,7 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
   defp convert_task_status(_), do: :unknown
 
   defp convert_error_info(nil), do: nil
+
   defp convert_error_info(error) do
     %{
       kind: error.kind,
@@ -713,12 +767,15 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     nanos = rem(ms, 1000) * 1_000_000
     %Google.Protobuf.Timestamp{seconds: seconds, nanos: nanos}
   end
+
   defp timestamp_from_ms(_), do: nil
 
   defp timestamp_to_ms(nil), do: System.system_time(:millisecond)
+
   defp timestamp_to_ms(%Google.Protobuf.Timestamp{seconds: s, nanos: n}) do
     s * 1000 + div(n, 1_000_000)
   end
+
   defp timestamp_to_ms(_), do: System.system_time(:millisecond)
 
   # New helper functions for execution status
@@ -735,51 +792,59 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
     completed_steps = build_completed_steps(engine_data)
 
     # Get current step info
-    current_step_name = if engine_data.step_index < length(engine_data.timeline) do
-      Enum.at(engine_data.timeline, engine_data.step_index) || ""
-    else
-      ""
-    end
+    current_step_name =
+      if engine_data.step_index < length(engine_data.timeline) do
+        Enum.at(engine_data.timeline, engine_data.step_index) || ""
+      else
+        ""
+      end
 
     # Convert inputs and step outputs
     inputs = convert_to_struct(engine_data.context.inputs)
-    step_outputs = Enum.into(engine_data.results, %{}, fn {step_name, result} ->
-      {to_string(step_name), convert_to_struct(result)}
-    end)
+
+    step_outputs =
+      Enum.into(engine_data.results, %{}, fn {step_name, result} ->
+        {to_string(step_name), convert_to_struct(result)}
+      end)
 
     # Build sleep info if sleeping
-    sleep_info = if engine_data.sleep_duration_ms do
-      build_sleep_info(engine_data)
-    else
-      nil
-    end
+    sleep_info =
+      if engine_data.sleep_duration_ms do
+        build_sleep_info(engine_data)
+      else
+        nil
+      end
 
     # Build approval info if waiting for approval
-    approval_info = if engine_data.approval_type do
-      build_approval_info(engine_data)
-    else
-      nil
-    end
+    approval_info =
+      if engine_data.approval_type do
+        build_approval_info(engine_data)
+      else
+        nil
+      end
 
     # Build error info if failed
-    error_info = if engine_data.error do
-      build_error_info(engine_data.error)
-    else
-      nil
-    end
+    error_info =
+      if engine_data.error do
+        build_error_info(engine_data.error)
+      else
+        nil
+      end
 
     # Get timestamps
-    started_at = if engine_data.context.started_at do
-      timestamp_from_ms(engine_data.context.started_at)
-    else
-      nil
-    end
+    started_at =
+      if engine_data.context.started_at do
+        timestamp_from_ms(engine_data.context.started_at)
+      else
+        nil
+      end
 
-    completed_at = if engine_data.finished_at do
-      timestamp_from_ms(engine_data.finished_at)
-    else
-      nil
-    end
+    completed_at =
+      if engine_data.finished_at do
+        timestamp_from_ms(engine_data.finished_at)
+      else
+        nil
+      end
 
     %ExecutionStatus{
       execution_id: execution_id,
@@ -833,9 +898,12 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
         step_name: to_string(step_name),
         step_index: index,
         status: "completed",
-        started_at: nil,  # We don't track individual step start times in Engine.Data
-        completed_at: nil,  # We don't track individual step completion times
-        duration_seconds: 0,  # Not available in Engine.Data
+        # We don't track individual step start times in Engine.Data
+        started_at: nil,
+        # We don't track individual step completion times
+        completed_at: nil,
+        # Not available in Engine.Data
+        duration_seconds: 0,
         output: if(result, do: convert_to_struct(result), else: nil),
         error: nil
       }
@@ -844,16 +912,23 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
 
   defp build_sleep_info(engine_data) do
     now_ms = System.system_time(:millisecond)
-    elapsed_ms = if engine_data.sleep_started_at do
-      now_ms - engine_data.sleep_started_at
-    else
-      0
-    end
+
+    elapsed_ms =
+      if engine_data.sleep_started_at do
+        now_ms - engine_data.sleep_started_at
+      else
+        0
+      end
+
     remaining_ms = max(0, engine_data.sleep_duration_ms - elapsed_ms)
 
     %SleepInfo{
       duration_ms: engine_data.sleep_duration_ms,
-      sleep_started_at: if(engine_data.sleep_started_at, do: timestamp_from_ms(engine_data.sleep_started_at), else: nil),
+      sleep_started_at:
+        if(engine_data.sleep_started_at,
+          do: timestamp_from_ms(engine_data.sleep_started_at),
+          else: nil
+        ),
       remaining_ms: remaining_ms,
       data: if(engine_data.sleep_data, do: convert_to_struct(engine_data.sleep_data), else: nil)
     }
@@ -861,23 +936,31 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
 
   defp build_approval_info(engine_data) do
     now_ms = System.system_time(:millisecond)
-    elapsed_ms = if engine_data.approval_started_at do
-      now_ms - engine_data.approval_started_at
-    else
-      0
-    end
 
-    remaining_timeout_ms = if engine_data.approval_timeout_ms do
-      max(0, engine_data.approval_timeout_ms - elapsed_ms)
-    else
-      0
-    end
+    elapsed_ms =
+      if engine_data.approval_started_at do
+        now_ms - engine_data.approval_started_at
+      else
+        0
+      end
+
+    remaining_timeout_ms =
+      if engine_data.approval_timeout_ms do
+        max(0, engine_data.approval_timeout_ms - elapsed_ms)
+      else
+        0
+      end
 
     %ApprovalInfo{
       approval_type: to_string(engine_data.approval_type || "manual"),
-      data: if(engine_data.approval_data, do: convert_to_struct(engine_data.approval_data), else: nil),
+      data:
+        if(engine_data.approval_data, do: convert_to_struct(engine_data.approval_data), else: nil),
       timeout_ms: engine_data.approval_timeout_ms || 0,
-      requested_at: if(engine_data.approval_started_at, do: timestamp_from_ms(engine_data.approval_started_at), else: nil),
+      requested_at:
+        if(engine_data.approval_started_at,
+          do: timestamp_from_ms(engine_data.approval_started_at),
+          else: nil
+        ),
       remaining_timeout_ms: remaining_timeout_ms
     }
   end
@@ -889,6 +972,7 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
       stacktrace: to_string(Map.get(error, :stacktrace, ""))
     }
   end
+
   defp build_error_info(error) when is_binary(error) do
     %ErrorInfo{
       kind: "error",
@@ -896,6 +980,7 @@ defmodule Cerebelum.Infrastructure.WorkerServiceServer do
       stacktrace: ""
     }
   end
+
   defp build_error_info(_), do: nil
 
   defp execution_state_to_atom(:EXECUTION_STATE_UNSPECIFIED), do: nil

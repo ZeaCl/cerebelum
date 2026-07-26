@@ -73,41 +73,64 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     Logger.info("Executing step: #{step_name}")
 
     # Check execution mode
-    result = case StepExecutor.step_mode(data.context.workflow_module) do
-      :remote ->
-        # Distributed workflow — delegate to worker via DelegatingWorkflow
-        Logger.info("Delegating step '#{step_name}' to worker")
-        # Use data.timeline (atoms) — already extracted from blueprint in Data.new,
-        # and consistent with data.results which also uses atom keys.
-        # Fixes #89: previously rebuilt timeline from blueprint with string keys,
-        # causing Map.get(atom_results, string_key) → nil in build_arguments.
-        timeline = data.timeline
-        args = StepExecutor.build_arguments(data.context, data.current_step_index, timeline, data.results)
-        step_inputs = build_step_inputs(args, timeline, data.current_step_index, Map.get(data.results, step_name))
+    result =
+      case StepExecutor.step_mode(data.context.workflow_module) do
+        :remote ->
+          # Distributed workflow — delegate to worker via DelegatingWorkflow
+          Logger.info("Delegating step '#{step_name}' to worker")
+          # Use data.timeline (atoms) — already extracted from blueprint in Data.new,
+          # and consistent with data.results which also uses atom keys.
+          # Fixes #89: previously rebuilt timeline from blueprint with string keys,
+          # causing Map.get(atom_results, string_key) → nil in build_arguments.
+          timeline = data.timeline
 
-        # Propagate auth token so workflow steps can call external APIs
-        step_inputs = case get_in(data.context.metadata, [:auth_token]) do
-          nil ->
-            Logger.info("No auth_token in context metadata for step #{step_name}")
-            step_inputs
-          token when is_binary(token) ->
-            Logger.info("Propagating auth_token to step #{step_name} (len=#{byte_size(token)})")
-            Map.put(step_inputs, "auth_token", token)
-          _ -> step_inputs
-        end
-        Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
+          args =
+            StepExecutor.build_arguments(
+              data.context,
+              data.current_step_index,
+              timeline,
+              data.results
+            )
 
-      :local ->
-        # Native Elixir workflow — execute directly
-        StepExecutor.execute_step(
-          data.context.workflow_module,
-          step_name,
-          data.current_step_index,
-          data.context,
-          data.workflow_metadata.timeline,
-          data.results
-        )
-    end
+          step_inputs =
+            build_step_inputs(
+              args,
+              timeline,
+              data.current_step_index,
+              Map.get(data.results, step_name)
+            )
+
+          # Propagate auth token so workflow steps can call external APIs
+          step_inputs =
+            case get_in(data.context.metadata, [:auth_token]) do
+              nil ->
+                Logger.info("No auth_token in context metadata for step #{step_name}")
+                step_inputs
+
+              token when is_binary(token) ->
+                Logger.info(
+                  "Propagating auth_token to step #{step_name} (len=#{byte_size(token)})"
+                )
+
+                Map.put(step_inputs, "auth_token", token)
+
+              _ ->
+                step_inputs
+            end
+
+          Cerebelum.WorkflowDelegatingWorkflow.execute_step(data, step_name, step_inputs)
+
+        :local ->
+          # Native Elixir workflow — execute directly
+          StepExecutor.execute_step(
+            data.context.workflow_module,
+            step_name,
+            data.current_step_index,
+            data.context,
+            data.workflow_metadata.timeline,
+            data.results
+          )
+      end
 
     case result do
       {:ok, step_result} ->
@@ -197,6 +220,7 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
     # Telemetry: execution failed
     error_kind = if data.error, do: data.error.kind || :unknown, else: :unknown
+
     :telemetry.execute(
       [:cerebelum, :executions, :failed],
       %{count: 1},
@@ -227,33 +251,40 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Map previous results to step names from the timeline
     # prev_results[i] corresponds to step timeline[i]
     prev_steps = timeline |> Enum.take(current_step_index)
+
     named_results =
       Enum.zip(prev_steps, prev_results)
       |> Enum.into(%{})
       # Unwrap @step decorator's {"ok": result} wrapper from Python SDK
       |> Map.new(fn {name, result} ->
-        unwrapped = case result do
-          %{"ok" => inner} when is_map(inner) -> inner
-          _ -> result
-        end
+        unwrapped =
+          case result do
+            %{"ok" => inner} when is_map(inner) -> inner
+            _ -> result
+          end
+
         {name, unwrapped}
       end)
 
     # Merge named results with previous_results for backward compatibility
     inputs = Map.merge(%{previous_results: prev_results}, named_results)
 
-    Logger.info("build_step_inputs[#{current_step_index}]: prev_steps=#{inspect(prev_steps)}, prev_results_count=#{length(prev_results)}, named_keys=#{inspect(Map.keys(named_results))}")
-
+    Logger.info(
+      "build_step_inputs[#{current_step_index}]: prev_steps=#{inspect(prev_steps)}, prev_results_count=#{length(prev_results)}, named_keys=#{inspect(Map.keys(named_results))}"
+    )
 
     # Include current step's own result so HITL steps receive approval data on re-execution
     case current_result do
       {:ok, approval_data} when is_map(approval_data) ->
         # Also unwrap the ok wrapper from approval data
-        unwrapped_approval = case approval_data do
-          %{"ok" => inner} when is_map(inner) -> inner
-          _ -> approval_data
-        end
+        unwrapped_approval =
+          case approval_data do
+            %{"ok" => inner} when is_map(inner) -> inner
+            _ -> approval_data
+          end
+
         Map.put(inputs, :inputs, unwrapped_approval)
+
       _ ->
         inputs
     end
@@ -422,11 +453,13 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
   defp handle_step_error(data, step_name, error_info) do
     # Handle both ErrorInfo structs and plain error strings
-    formatted = if is_binary(error_info) do
-      error_info
-    else
-      ErrorInfo.format(error_info)
-    end
+    formatted =
+      if is_binary(error_info) do
+        error_info
+      else
+        ErrorInfo.format(error_info)
+      end
+
     Logger.error("Step #{step_name} failed: #{formatted}")
 
     # Telemetry: step failed
@@ -442,11 +475,17 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Emit StepFailedEvent (async batched)
     {version, data} = Data.next_event_version(data)
 
-    error_struct = if is_binary(error_info) do
-      ErrorInfo.from_exception(step_name, %RuntimeError{message: error_info}, [], data.context.execution_id)
-    else
-      error_info
-    end
+    error_struct =
+      if is_binary(error_info) do
+        ErrorInfo.from_exception(
+          step_name,
+          %RuntimeError{message: error_info},
+          [],
+          data.context.execution_id
+        )
+      else
+        error_info
+      end
 
     EventEmitter.emit_step_failed(data, error_struct, version)
 
@@ -526,22 +565,24 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     Logger.info("Step #{step_name} requested sleep for #{duration_ms}ms")
 
     # Store the step result if provided
-    data = if result != nil do
-      Data.store_result(data, step_name, result)
-    else
-      data
-    end
+    data =
+      if result != nil do
+        Data.store_result(data, step_name, result)
+      else
+        data
+      end
 
     # Emit StepExecutedEvent with sleep result
     {version, data} = Data.next_event_version(data)
     EventEmitter.emit_step_executed(data, step_name, {:sleep, duration_ms, result}, 0, version)
 
     # Prepare data for sleeping state
-    data = %{data |
-      sleep_duration_ms: duration_ms,
-      sleep_started_at: System.monotonic_time(:millisecond),
-      sleep_step_name: step_name,
-      sleep_result: result
+    data = %{
+      data
+      | sleep_duration_ms: duration_ms,
+        sleep_started_at: System.monotonic_time(:millisecond),
+        sleep_step_name: step_name,
+        sleep_result: result
     }
 
     # Transition to sleeping state
@@ -570,23 +611,24 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     # Only emit SleepStartedEvent if this is a NEW sleep (not a resume)
     # When resuming, old_state will be :sleeping (same state)
     # When entering for first time, old_state will be :executing_step
-    data = if old_state != :sleeping do
-      {version, data} = Data.next_event_version(data)
+    data =
+      if old_state != :sleeping do
+        {version, data} = Data.next_event_version(data)
 
-      event =
-        Cerebelum.Events.SleepStartedEvent.new(
-          data.context.execution_id,
-          data.sleep_step_name,
-          data.sleep_duration_ms,
-          version
-        )
+        event =
+          Cerebelum.Events.SleepStartedEvent.new(
+            data.context.execution_id,
+            data.sleep_step_name,
+            data.sleep_duration_ms,
+            version
+          )
 
-      Cerebelum.EventStore.append(data.context.execution_id, event, version)
-      data
-    else
-      # Resuming - event was already emitted before, don't emit again
-      data
-    end
+        Cerebelum.EventStore.append(data.context.execution_id, event, version)
+        data
+      else
+        # Resuming - event was already emitted before, don't emit again
+        data
+      end
 
     # When resuming, prepare_sleep_resume already set the state_timeout with remaining time
     # Don't override it here - just keep the state
@@ -621,7 +663,11 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
             hibernate_version
           )
 
-        Cerebelum.EventStore.append_sync(data.context.execution_id, hibernate_event, hibernate_version)
+        Cerebelum.EventStore.append_sync(
+          data.context.execution_id,
+          hibernate_event,
+          hibernate_version
+        )
 
         # Terminate process gracefully (will be resurrected by scheduler)
         {:stop, :normal, data}
@@ -661,11 +707,12 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     Cerebelum.EventStore.append(data.context.execution_id, event, version)
 
     # Clear sleep data
-    data = %{data |
-      sleep_duration_ms: nil,
-      sleep_started_at: nil,
-      sleep_step_name: nil,
-      sleep_result: nil
+    data = %{
+      data
+      | sleep_duration_ms: nil,
+        sleep_started_at: nil,
+        sleep_step_name: nil,
+        sleep_result: nil
     }
 
     # Advance to next step
@@ -779,12 +826,13 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     data = Data.store_result(data, data.approval_step_name, {:ok, approval_response})
 
     # Clear approval metadata
-    data = %{data |
-      approval_type: nil,
-      approval_data: nil,
-      approval_step_name: nil,
-      approval_timeout_ms: nil,
-      approval_started_at: nil
+    data = %{
+      data
+      | approval_type: nil,
+        approval_data: nil,
+        approval_step_name: nil,
+        approval_timeout_ms: nil,
+        approval_started_at: nil
     }
 
     # Re-execute the SAME step with approval data (don't advance yet)
@@ -794,7 +842,9 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   end
 
   def waiting_for_approval({:call, from}, {:reject, rejection_reason}, data) do
-    Logger.warning("Approval rejected for step: #{data.approval_step_name}, reason: #{inspect(rejection_reason)}")
+    Logger.warning(
+      "Approval rejected for step: #{data.approval_step_name}, reason: #{inspect(rejection_reason)}"
+    )
 
     # Telemetry: approval rejected
     :telemetry.execute(
@@ -841,7 +891,9 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
   end
 
   def waiting_for_approval(:state_timeout, :approval_timeout, data) do
-    Logger.error("Approval timeout for step: #{data.approval_step_name} after #{data.approval_timeout_ms}ms")
+    Logger.error(
+      "Approval timeout for step: #{data.approval_step_name} after #{data.approval_timeout_ms}ms"
+    )
 
     # Emit ApprovalTimeoutEvent
     {version, data} = Data.next_event_version(data)
@@ -881,7 +933,8 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
         approval_elapsed_ms: System.monotonic_time(:millisecond) - data.approval_started_at,
         approval_remaining_ms:
           if data.approval_timeout_ms do
-            data.approval_timeout_ms - (System.monotonic_time(:millisecond) - data.approval_started_at)
+            data.approval_timeout_ms -
+              (System.monotonic_time(:millisecond) - data.approval_started_at)
           else
             nil
           end
@@ -918,15 +971,23 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
 
     # Emit StepExecutedEvent for consistency
     {version, data} = Data.next_event_version(data)
-    EventEmitter.emit_step_executed(data, step_name, {:waiting_for_approval, approval_data}, 0, version)
+
+    EventEmitter.emit_step_executed(
+      data,
+      step_name,
+      {:waiting_for_approval, approval_data},
+      0,
+      version
+    )
 
     # Prepare data for waiting_for_approval state
-    data = %{data |
-      approval_type: approval_type,
-      approval_data: approval_data,
-      approval_step_name: step_name,
-      approval_timeout_ms: timeout_ms,
-      approval_started_at: System.monotonic_time(:millisecond)
+    data = %{
+      data
+      | approval_type: approval_type,
+        approval_data: approval_data,
+        approval_step_name: step_name,
+        approval_timeout_ms: timeout_ms,
+        approval_started_at: System.monotonic_time(:millisecond)
     }
 
     # Transition to waiting_for_approval state
@@ -961,14 +1022,18 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
       sleep_started_at: DateTime.utc_now()
     }
 
-    case Cerebelum.Persistence.WorkflowPause.changeset(%Cerebelum.Persistence.WorkflowPause{}, pause_attrs)
+    case Cerebelum.Persistence.WorkflowPause.changeset(
+           %Cerebelum.Persistence.WorkflowPause{},
+           pause_attrs
+         )
          |> Cerebelum.Repo.insert() do
       {:ok, _pause} ->
         :ok
 
       {:error, changeset} ->
         Logger.error("Failed to create hibernation pause record: #{inspect(changeset)}")
-        :ok  # Don't fail the workflow, just log
+        # Don't fail the workflow, just log
+        :ok
     end
   end
 end

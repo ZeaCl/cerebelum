@@ -33,6 +33,7 @@ defmodule Cerebelum.API.HealthController do
       {:ok, sock} ->
         :gen_tcp.close(sock)
         "running"
+
       {:error, _} ->
         "stopped"
     end

@@ -133,7 +133,15 @@ defmodule Cerebelum.Events do
       :version
     ]
 
-    @spec new(String.t(), atom(), non_neg_integer(), list(), term(), non_neg_integer(), non_neg_integer()) :: t()
+    @spec new(
+            String.t(),
+            atom(),
+            non_neg_integer(),
+            list(),
+            term(),
+            non_neg_integer(),
+            non_neg_integer()
+          ) :: t()
     def new(execution_id, step_name, step_index, args, result, duration_ms, version) do
       %__MODULE__{
         event_id: Ecto.UUID.generate(),
@@ -181,7 +189,15 @@ defmodule Cerebelum.Events do
       :version
     ]
 
-    @spec new(String.t(), atom(), non_neg_integer(), atom(), term(), String.t(), non_neg_integer()) :: t()
+    @spec new(
+            String.t(),
+            atom(),
+            non_neg_integer(),
+            atom(),
+            term(),
+            String.t(),
+            non_neg_integer()
+          ) :: t()
     def new(execution_id, step_name, step_index, error_kind, error_reason, error_message, version) do
       %__MODULE__{
         event_id: Ecto.UUID.generate(),
@@ -321,7 +337,16 @@ defmodule Cerebelum.Events do
       :version
     ]
 
-    @spec new(String.t(), atom(), atom(), non_neg_integer(), atom(), non_neg_integer(), non_neg_integer(), non_neg_integer()) ::
+    @spec new(
+            String.t(),
+            atom(),
+            atom(),
+            non_neg_integer(),
+            atom(),
+            non_neg_integer(),
+            non_neg_integer(),
+            non_neg_integer()
+          ) ::
             t()
     def new(execution_id, jump_type, from_step, from_index, to_step, to_index, iteration, version) do
       %__MODULE__{
@@ -369,7 +394,14 @@ defmodule Cerebelum.Events do
       :version
     ]
 
-    @spec new(String.t(), map(), non_neg_integer(), non_neg_integer(), non_neg_integer(), non_neg_integer()) :: t()
+    @spec new(
+            String.t(),
+            map(),
+            non_neg_integer(),
+            non_neg_integer(),
+            non_neg_integer(),
+            non_neg_integer()
+          ) :: t()
     def new(execution_id, results, total_steps, total_duration_ms, iteration, version) do
       %__MODULE__{
         event_id: Ecto.UUID.generate(),
@@ -416,8 +448,17 @@ defmodule Cerebelum.Events do
       :version
     ]
 
-    @spec new(String.t(), atom(), term(), String.t(), atom() | nil, map(), non_neg_integer()) :: t()
-    def new(execution_id, error_kind, error_reason, error_message, failed_step, partial_results, version) do
+    @spec new(String.t(), atom(), term(), String.t(), atom() | nil, map(), non_neg_integer()) ::
+            t()
+    def new(
+          execution_id,
+          error_kind,
+          error_reason,
+          error_message,
+          failed_step,
+          partial_results,
+          version
+        ) do
       %__MODULE__{
         event_id: Ecto.UUID.generate(),
         execution_id: execution_id,
@@ -713,7 +754,8 @@ defmodule Cerebelum.Events do
       :version
     ]
 
-    @spec new(String.t(), atom(), atom(), map(), non_neg_integer() | nil, non_neg_integer()) :: t()
+    @spec new(String.t(), atom(), atom(), map(), non_neg_integer() | nil, non_neg_integer()) ::
+            t()
     def new(execution_id, step_name, approval_type, approval_data, timeout_ms, version) do
       %__MODULE__{
         event_id: Ecto.UUID.generate(),

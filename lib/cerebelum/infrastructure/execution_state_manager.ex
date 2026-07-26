@@ -140,7 +140,8 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
       diverge_rules: diverge_rules,
       branch_rules: branch_rules,
       inputs: inputs,
-      completed_steps: %{},  # Map of step_name => result
+      # Map of step_name => result
+      completed_steps: %{},
       pending_steps: MapSet.new(Enum.map(timeline, &extract_step_name/1)),
       status: :running,
       started_at: System.system_time(:millisecond),
@@ -160,10 +161,12 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
     case :ets.lookup(@table_name, execution_id) do
       [{^execution_id, exec_state}] ->
         # Update execution state
-        updated_state = exec_state
-        |> Map.update!(:completed_steps, fn steps ->
-          Map.put(steps, step_name, result)
-        end)
+        updated_state =
+          exec_state
+          |> Map.update!(:completed_steps, fn steps ->
+            Map.put(steps, step_name, result)
+          end)
+
         # NOTE: Don't remove from pending_steps here - that happens when queued
 
         # Store updated state
@@ -185,11 +188,12 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
         next_steps = determine_next_steps(exec_state)
 
         # Remove steps from pending_steps since they will be queued
-        updated_state = Enum.reduce(next_steps, exec_state, fn step_name, acc_state ->
-          Map.update!(acc_state, :pending_steps, fn pending ->
-            MapSet.delete(pending, step_name)
+        updated_state =
+          Enum.reduce(next_steps, exec_state, fn step_name, acc_state ->
+            Map.update!(acc_state, :pending_steps, fn pending ->
+              MapSet.delete(pending, step_name)
+            end)
           end)
-        end)
 
         # Store updated state
         :ets.insert(@table_name, {execution_id, updated_state})
@@ -205,9 +209,10 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
   def handle_call({:complete_execution, execution_id}, _from, state) do
     case :ets.lookup(@table_name, execution_id) do
       [{^execution_id, exec_state}] ->
-        updated_state = exec_state
-        |> Map.put(:status, :completed)
-        |> Map.put(:completed_at, System.system_time(:millisecond))
+        updated_state =
+          exec_state
+          |> Map.put(:status, :completed)
+          |> Map.put(:completed_at, System.system_time(:millisecond))
 
         :ets.insert(@table_name, {execution_id, updated_state})
 
@@ -224,10 +229,11 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
   def handle_call({:fail_execution, execution_id, error}, _from, state) do
     case :ets.lookup(@table_name, execution_id) do
       [{^execution_id, exec_state}] ->
-        updated_state = exec_state
-        |> Map.put(:status, :failed)
-        |> Map.put(:error, error)
-        |> Map.put(:completed_at, System.system_time(:millisecond))
+        updated_state =
+          exec_state
+          |> Map.put(:status, :failed)
+          |> Map.put(:error, error)
+          |> Map.put(:completed_at, System.system_time(:millisecond))
 
         :ets.insert(@table_name, {execution_id, updated_state})
 
@@ -271,6 +277,7 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
   end
 
   defp evaluate_diverge_rules(%{diverge_rules: [], completed_steps: _}), do: :no_diverge
+
   defp evaluate_diverge_rules(%{diverge_rules: rules, completed_steps: completed}) do
     # Find the most recent diverge rule that matches
     Enum.find_value(rules, :no_diverge, fn rule ->
@@ -300,6 +307,7 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
   end
 
   defp evaluate_branch_rules(%{branch_rules: [], completed_steps: _}), do: :no_branch
+
   defp evaluate_branch_rules(%{branch_rules: rules, completed_steps: completed}) do
     # Find the first branch rule that matches
     Enum.find_value(rules, :no_branch, fn rule ->
@@ -317,7 +325,8 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
             target = get_in(branch, [:action, :target_step])
 
             # Only return target if condition matches AND target hasn't been completed yet
-            if target && evaluate_condition?(condition, step_result) && !Map.has_key?(completed, target) do
+            if target && evaluate_condition?(condition, step_result) &&
+                 !Map.has_key?(completed, target) do
               {:branch, target}
             end
           end)
@@ -343,11 +352,11 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
     end)
     |> Enum.filter(fn {step_name, depends_on} ->
       # Step is still pending (not yet queued)
-      MapSet.member?(pending, step_name) and
       # All dependencies are completed
-      Enum.all?(depends_on, fn dep -> Map.has_key?(completed, dep) end) and
       # Step is not blocked by unevaluated diverge/branch rules
-      not MapSet.member?(blocked_steps, step_name)
+      MapSet.member?(pending, step_name) and
+        Enum.all?(depends_on, fn dep -> Map.has_key?(completed, dep) end) and
+        not MapSet.member?(blocked_steps, step_name)
     end)
     |> Enum.map(fn {step_name, _} -> step_name end)
   end
@@ -358,86 +367,92 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
     branch_rules = exec_state.branch_rules
 
     # Get targets of diverge rules that should be blocked
-    diverge_blocked = diverge_rules
-    |> Enum.flat_map(fn rule ->
-      from_step = rule.from_step
-      targets = Enum.map(rule.patterns, fn pattern -> pattern.target end)
+    diverge_blocked =
+      diverge_rules
+      |> Enum.flat_map(fn rule ->
+        from_step = rule.from_step
+        targets = Enum.map(rule.patterns, fn pattern -> pattern.target end)
 
-      cond do
-        # Case 1: from_step hasn't completed → block ALL targets
-        not Map.has_key?(completed, from_step) ->
-          targets
+        cond do
+          # Case 1: from_step hasn't completed → block ALL targets
+          not Map.has_key?(completed, from_step) ->
+            targets
 
-        # Case 2: from_step completed → only allow ONE target (the one that matches or already completed)
-        true ->
-          # Filter out targets that are already completed (they were chosen)
-          # All other targets should remain blocked forever
-          Enum.filter(targets, fn target ->
-            not Map.has_key?(completed, target)
-          end)
-          # If none are completed yet, evaluate which one should be allowed
-          |> case do
-            [] ->
-              # All targets already completed, nothing to block
-              []
+          # Case 2: from_step completed → only allow ONE target (the one that matches or already completed)
+          true ->
+            # Filter out targets that are already completed (they were chosen)
+            # All other targets should remain blocked forever
+            Enum.filter(targets, fn target ->
+              not Map.has_key?(completed, target)
+            end)
+            # If none are completed yet, evaluate which one should be allowed
+            |> case do
+              [] ->
+                # All targets already completed, nothing to block
+                []
 
-            remaining_targets ->
-              # Check if the diverge rule matches and allows one target
-              step_result = Map.get(completed, from_step)
-              allowed_target = Enum.find_value(rule.patterns, fn pattern ->
-                if matches_pattern?(step_result, pattern.pattern) do
-                  pattern.target
-                end
-              end)
+              remaining_targets ->
+                # Check if the diverge rule matches and allows one target
+                step_result = Map.get(completed, from_step)
 
-              # Block all targets EXCEPT the allowed one
-              Enum.filter(remaining_targets, fn target ->
-                target != allowed_target
-              end)
-          end
-      end
-    end)
+                allowed_target =
+                  Enum.find_value(rule.patterns, fn pattern ->
+                    if matches_pattern?(step_result, pattern.pattern) do
+                      pattern.target
+                    end
+                  end)
+
+                # Block all targets EXCEPT the allowed one
+                Enum.filter(remaining_targets, fn target ->
+                  target != allowed_target
+                end)
+            end
+        end
+      end)
 
     # Get targets of branch rules that should be blocked
-    branch_blocked = branch_rules
-    |> Enum.flat_map(fn rule ->
-      from_step = rule.from_step
-      targets = Enum.map(rule.branches, fn branch -> branch.action.target_step end)
+    branch_blocked =
+      branch_rules
+      |> Enum.flat_map(fn rule ->
+        from_step = rule.from_step
+        targets = Enum.map(rule.branches, fn branch -> branch.action.target_step end)
 
-      cond do
-        # Case 1: from_step hasn't completed → block ALL targets
-        not Map.has_key?(completed, from_step) ->
-          targets
+        cond do
+          # Case 1: from_step hasn't completed → block ALL targets
+          not Map.has_key?(completed, from_step) ->
+            targets
 
-        # Case 2: from_step completed → only allow ONE target (the one that matches or already completed)
-        true ->
-          # Filter out targets that are already completed (they were chosen)
-          # All other targets should remain blocked forever
-          Enum.filter(targets, fn target ->
-            not Map.has_key?(completed, target)
-          end)
-          # If none are completed yet, evaluate which one should be allowed
-          |> case do
-            [] ->
-              # All targets already completed, nothing to block
-              []
+          # Case 2: from_step completed → only allow ONE target (the one that matches or already completed)
+          true ->
+            # Filter out targets that are already completed (they were chosen)
+            # All other targets should remain blocked forever
+            Enum.filter(targets, fn target ->
+              not Map.has_key?(completed, target)
+            end)
+            # If none are completed yet, evaluate which one should be allowed
+            |> case do
+              [] ->
+                # All targets already completed, nothing to block
+                []
 
-            remaining_targets ->
-              # Check if a branch condition matches and allows one target
-              step_result = Map.get(completed, from_step)
-              allowed_target = Enum.find_value(rule.branches, fn branch ->
-                if evaluate_condition?(branch.condition, step_result) do
-                  branch.action.target_step
-                end
-              end)
+              remaining_targets ->
+                # Check if a branch condition matches and allows one target
+                step_result = Map.get(completed, from_step)
 
-              # Block all targets EXCEPT the allowed one
-              Enum.filter(remaining_targets, fn target ->
-                target != allowed_target
-              end)
-          end
-      end
-    end)
+                allowed_target =
+                  Enum.find_value(rule.branches, fn branch ->
+                    if evaluate_condition?(branch.condition, step_result) do
+                      branch.action.target_step
+                    end
+                  end)
+
+                # Block all targets EXCEPT the allowed one
+                Enum.filter(remaining_targets, fn target ->
+                  target != allowed_target
+                end)
+            end
+        end
+      end)
 
     # Combine and return as MapSet
     MapSet.new(diverge_blocked ++ branch_blocked)
@@ -447,10 +462,11 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
     # Simple pattern matching: check if all pattern keys match result
     Enum.all?(pattern, fn {key, value} ->
       Map.get(result, key) == value or
-      Map.get(result, String.to_atom(key)) == value or
-      Map.get(result, to_string(key)) == value
+        Map.get(result, String.to_atom(key)) == value or
+        Map.get(result, to_string(key)) == value
     end)
   end
+
   defp matches_pattern?(_, _), do: false
 
   defp evaluate_condition?(condition, result) when is_binary(condition) do
@@ -497,12 +513,14 @@ defmodule Cerebelum.Infrastructure.ExecutionStateManager do
   rescue
     _ -> false
   end
+
   defp evaluate_condition?(_, _), do: false
 
   defp get_result_value(result, field) when is_map(result) do
     Map.get(result, field) ||
-    Map.get(result, String.to_atom(field)) ||
-    Map.get(result, to_string(field))
+      Map.get(result, String.to_atom(field)) ||
+      Map.get(result, to_string(field))
   end
+
   defp get_result_value(_, _), do: nil
 end

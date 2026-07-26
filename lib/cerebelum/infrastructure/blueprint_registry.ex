@@ -48,6 +48,7 @@ defmodule Cerebelum.Infrastructure.BlueprintRegistry do
     case :ets.lookup(@table_name, workflow_module) do
       [{^workflow_module, blueprint}] ->
         {:ok, blueprint}
+
       [] ->
         {:error, :not_found}
     end

@@ -100,11 +100,13 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
 
     # Propagate auth token so workflow steps can call external APIs
     auth_token = get_in(data.context.metadata, [:auth_token])
-    task_context = if auth_token do
-      Map.put(task_context, :auth_token, auth_token)
-    else
-      task_context
-    end
+
+    task_context =
+      if auth_token do
+        Map.put(task_context, :auth_token, auth_token)
+      else
+        task_context
+      end
 
     task = %{
       workflow_module: blueprint_name,
@@ -164,7 +166,6 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
         # Cleanup registry
         Registry.unregister(Cerebelum.Execution.Registry, registry_key)
         result
-
     after
       timeout ->
         # Cleanup registry
@@ -238,31 +239,38 @@ defmodule Cerebelum.WorkflowDelegatingWorkflow do
       name when is_atom(name) -> name
     end)
   end
+
   defp extract_timeline(_), do: []
 
   defp extract_diverges(%{definition: %{diverge_rules: rules}}) when is_list(rules) do
     # Convertir diverge rules del blueprint al formato del Engine
     Enum.reduce(rules, %{}, fn rule, acc ->
       from_step = String.to_atom(rule.from_step)
-      patterns = Enum.map(rule.patterns, fn pattern ->
-        {pattern.pattern, String.to_atom(pattern.target)}
-      end)
+
+      patterns =
+        Enum.map(rule.patterns, fn pattern ->
+          {pattern.pattern, String.to_atom(pattern.target)}
+        end)
 
       Map.put(acc, from_step, patterns)
     end)
   end
+
   defp extract_diverges(_), do: %{}
 
   defp extract_branches(%{definition: %{branch_rules: rules}}) when is_list(rules) do
     # Convertir branch rules del blueprint al formato del Engine
     Enum.reduce(rules, %{}, fn rule, acc ->
       from_step = String.to_atom(rule.from_step)
-      branches = Enum.map(rule.branches, fn branch ->
-        {branch.condition, String.to_atom(branch.target)}
-      end)
+
+      branches =
+        Enum.map(rule.branches, fn branch ->
+          {branch.condition, String.to_atom(branch.target)}
+        end)
 
       Map.put(acc, from_step, branches)
     end)
   end
+
   defp extract_branches(_), do: %{}
 end

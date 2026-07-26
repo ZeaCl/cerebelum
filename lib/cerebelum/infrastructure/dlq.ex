@@ -152,7 +152,9 @@ defmodule Cerebelum.Infrastructure.DLQ do
          |> DLQItem.changeset(dlq_attrs)
          |> Repo.insert() do
       {:ok, dlq_item} ->
-        Logger.warning("Task moved to DLQ: #{task_info.task_id} (execution: #{task_info.execution_id}, step: #{task_info.step_name})")
+        Logger.warning(
+          "Task moved to DLQ: #{task_info.task_id} (execution: #{task_info.execution_id}, step: #{task_info.step_name})"
+        )
 
         # Emit telemetry
         :telemetry.execute(
@@ -239,7 +241,8 @@ defmodule Cerebelum.Infrastructure.DLQ do
             step_name: dlq_item.step_name,
             inputs: dlq_item.task_inputs,
             context: dlq_item.task_context,
-            retry_count: 0  # Reset retry count for manual retry
+            # Reset retry count for manual retry
+            retry_count: 0
           }
 
           case Cerebelum.Infrastructure.TaskRouter.queue_task(dlq_item.execution_id, task) do
@@ -254,7 +257,9 @@ defmodule Cerebelum.Infrastructure.DLQ do
                 })
                 |> Repo.update()
 
-              Logger.info("DLQ item retried: #{dlq_item_id} by #{retried_by}, new task: #{task_id}")
+              Logger.info(
+                "DLQ item retried: #{dlq_item_id} by #{retried_by}, new task: #{task_id}"
+              )
 
               # Emit telemetry
               :telemetry.execute(

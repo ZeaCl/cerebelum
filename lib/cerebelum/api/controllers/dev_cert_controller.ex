@@ -34,6 +34,7 @@ defmodule Cerebelum.API.DevCertController do
 
         {:error, reason} ->
           Logger.error("Dev cert failed for #{user_id}: #{inspect(reason)}")
+
           conn
           |> put_status(:internal_server_error)
           |> json(%{error: "cert_generation_failed"})
@@ -55,8 +56,8 @@ defmodule Cerebelum.API.DevCertController do
     ca_key_path = Path.join(@certs_dir, "ca.key")
 
     # Idempotent: reuse existing VALID cert (not empty)
-    if File.exists?(client_crt_path) and File.exists?(client_key_path)
-       and File.stat!(client_crt_path).size > 0 do
+    if File.exists?(client_crt_path) and File.exists?(client_key_path) and
+         File.stat!(client_crt_path).size > 0 do
       Logger.info("Dev cert reused for #{user_id}")
       {:ok, File.read!(ca_crt_path), File.read!(client_crt_path), File.read!(client_key_path)}
     else
@@ -65,10 +66,41 @@ defmodule Cerebelum.API.DevCertController do
   end
 
   defp do_generate(user_id, user_hash, key_path, crt_path, ca_crt, ca_key) do
-    with {_, 0} <- System.cmd("openssl", ["genrsa", "-out", key_path, "4096"], stderr_to_stdout: true),
-         {_, 0} <- System.cmd("openssl", ["req", "-new", "-key", key_path, "-out", "#{crt_path}.csr", "-subj", "/CN=dev-#{user_hash}"], stderr_to_stdout: true),
+    with {_, 0} <-
+           System.cmd("openssl", ["genrsa", "-out", key_path, "4096"], stderr_to_stdout: true),
+         {_, 0} <-
+           System.cmd(
+             "openssl",
+             [
+               "req",
+               "-new",
+               "-key",
+               key_path,
+               "-out",
+               "#{crt_path}.csr",
+               "-subj",
+               "/CN=dev-#{user_hash}"
+             ], stderr_to_stdout: true),
          serial = :rand.uniform(999_999),
-         {_, 0} <- System.cmd("openssl", ["x509", "-req", "-days", "365", "-in", "#{crt_path}.csr", "-CA", ca_crt, "-CAkey", ca_key, "-set_serial", "#{serial}", "-out", crt_path], stderr_to_stdout: true) do
+         {_, 0} <-
+           System.cmd(
+             "openssl",
+             [
+               "x509",
+               "-req",
+               "-days",
+               "365",
+               "-in",
+               "#{crt_path}.csr",
+               "-CA",
+               ca_crt,
+               "-CAkey",
+               ca_key,
+               "-set_serial",
+               "#{serial}",
+               "-out",
+               crt_path
+             ], stderr_to_stdout: true) do
       File.rm("#{crt_path}.csr")
       Logger.info("Dev cert generated for #{user_id}")
       {:ok, File.read!(ca_crt), File.read!(crt_path), File.read!(key_path)}

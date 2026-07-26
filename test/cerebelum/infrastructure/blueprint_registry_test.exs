@@ -83,7 +83,8 @@ defmodule Cerebelum.Infrastructure.BlueprintRegistryTest do
     end
 
     test "returns error when step does not exist in workflow" do
-      assert {:error, :step_not_found} = BlueprintRegistry.get_step(@workflow_name, "nonexistent_step")
+      assert {:error, :step_not_found} =
+               BlueprintRegistry.get_step(@workflow_name, "nonexistent_step")
     end
   end
 
@@ -149,12 +150,17 @@ defmodule Cerebelum.Infrastructure.BlueprintRegistryTest do
     end
 
     test "returns error when workflow does not exist" do
-      assert {:error, :not_found} = BlueprintRegistry.update_step("nonexistent", "step_a", "@step\ndef step_a(inputs):\n    pass")
+      assert {:error, :not_found} =
+               BlueprintRegistry.update_step(
+                 "nonexistent",
+                 "step_a",
+                 "@step\ndef step_a(inputs):\n    pass"
+               )
     end
 
     test "returns error when code has no def function" do
       assert {:error, :invalid_step_code} =
-        BlueprintRegistry.update_step(@workflow_name, "step_a", "just some text")
+               BlueprintRegistry.update_step(@workflow_name, "step_a", "just some text")
     end
 
     test "works with async def (Python async functions)" do
@@ -201,7 +207,8 @@ defmodule Cerebelum.Infrastructure.BlueprintRegistryTest do
       assert :ok = BlueprintRegistry.delete_step(@workflow_name, "validate_data")
 
       # Verify the step is gone
-      assert {:error, :step_not_found} = BlueprintRegistry.get_step(@workflow_name, "validate_data")
+      assert {:error, :step_not_found} =
+               BlueprintRegistry.get_step(@workflow_name, "validate_data")
 
       # Verify the other step remains
       assert {:ok, code} = BlueprintRegistry.get_step(@workflow_name, "create_fund")
@@ -218,7 +225,8 @@ defmodule Cerebelum.Infrastructure.BlueprintRegistryTest do
     end
 
     test "returns error when step does not exist" do
-      assert {:error, :step_not_found} = BlueprintRegistry.delete_step(@workflow_name, "nonexistent_step")
+      assert {:error, :step_not_found} =
+               BlueprintRegistry.delete_step(@workflow_name, "nonexistent_step")
     end
 
     test "allows deleting the last step (empty workflow)" do

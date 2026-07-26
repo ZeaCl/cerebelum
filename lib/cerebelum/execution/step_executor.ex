@@ -54,7 +54,9 @@ defmodule Cerebelum.Execution.StepExecutor do
       {:ok, result}
     rescue
       exception ->
-        error_info = ErrorInfo.from_exception(step_name, exception, __STACKTRACE__, context.execution_id)
+        error_info =
+          ErrorInfo.from_exception(step_name, exception, __STACKTRACE__, context.execution_id)
+
         Logger.error("Step #{step_name} raised exception: #{Exception.message(exception)}")
         Logger.debug("Stacktrace: #{Exception.format_stacktrace(error_info.stacktrace)}")
         {:error, error_info}

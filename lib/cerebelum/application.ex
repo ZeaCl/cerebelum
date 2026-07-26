@@ -54,7 +54,10 @@ defmodule Cerebelum.Application do
     # Conditionally add gRPC server if enabled
     children =
       if grpc_enabled?() do
-        Logger.info("gRPC: adding GRPC.Server.Supervisor to supervision tree on port #{grpc_port()}")
+        Logger.info(
+          "gRPC: adding GRPC.Server.Supervisor to supervision tree on port #{grpc_port()}"
+        )
+
         base_children ++
           [
             {GRPC.Server.Supervisor,
@@ -90,19 +93,24 @@ defmodule Cerebelum.Application do
     key = Path.join(certs_dir, "server.key")
 
     require Logger
-    Logger.info("gRPC TLS: certs_dir=#{certs_dir} cacert_exists=#{File.exists?(cacert)} cert_exists=#{File.exists?(cert)} key_exists=#{File.exists?(key)}")
+
+    Logger.info(
+      "gRPC TLS: certs_dir=#{certs_dir} cacert_exists=#{File.exists?(cacert)} cert_exists=#{File.exists?(cert)} key_exists=#{File.exists?(key)}"
+    )
 
     if File.exists?(cacert) and File.exists?(cert) and File.exists?(key) do
-      cred = GRPC.Credential.new(
-        ssl: [
-          certfile: cert,
-          keyfile: key,
-          cacertfile: cacert,
-          verify: :verify_peer,
-          fail_if_no_peer_cert: true,
-          versions: [:"tlsv1.2", :"tlsv1.3"]
-        ]
-      )
+      cred =
+        GRPC.Credential.new(
+          ssl: [
+            certfile: cert,
+            keyfile: key,
+            cacertfile: cacert,
+            verify: :verify_peer,
+            fail_if_no_peer_cert: true,
+            versions: [:"tlsv1.2", :"tlsv1.3"]
+          ]
+        )
+
       Logger.info("gRPC TLS: mTLS enabled")
       [cred: cred]
     else

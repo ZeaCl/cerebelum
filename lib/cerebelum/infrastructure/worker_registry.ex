@@ -1,22 +1,24 @@
 defmodule Cerebelum.Infrastructure.WorkerRegistry do
   @moduledoc """
   Manages the pool of registered SDK workers with health monitoring.
-  
+
   Responsibilities:
   - Track registered workers with metadata (language, capabilities, status)
   - Monitor worker health via heartbeats
   - Detect and deregister dead workers (3 missed heartbeats = 30s)
   - Provide worker pool status and queries
   - Support graceful worker shutdown (draining)
-  
+
   Workers are stored in an ETS table for fast concurrent lookups.
   """
 
   use GenServer
   require Logger
 
-  @heartbeat_timeout_ms 30_000  # 30 seconds = 3 missed heartbeats @ 10s interval
-  @health_check_interval_ms 10_000  # Check every 10 seconds
+  # 30 seconds = 3 missed heartbeats @ 10s interval
+  @heartbeat_timeout_ms 30_000
+  # Check every 10 seconds
+  @health_check_interval_ms 10_000
   @table_name :worker_registry
 
   # Client API
@@ -30,7 +32,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @doc """
   Register a new worker with metadata.
-  
+
   ## Parameters
   - worker_id: Unique identifier for the worker
   - metadata: Map containing:
@@ -38,7 +40,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
     - capabilities: List of workflow modules this worker can execute
     - version: SDK version
     - custom metadata
-  
+
   ## Returns
   - {:ok, worker} on success
   - {:error, reason} if worker already registered
@@ -49,7 +51,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @doc """
   Record heartbeat from a worker to update liveness.
-  
+
   ## Parameters
   - worker_id: Worker identifier
   - status: Worker status (:idle, :busy, :draining)
@@ -60,7 +62,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @doc """
   Unregister a worker from the pool.
-  
+
   ## Parameters
   - worker_id: Worker to remove
   - reason: Reason for unregistration (e.g., "shutdown", "error")
@@ -71,10 +73,10 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @doc """
   Get all workers with specified status.
-  
+
   ## Parameters
   - status: :idle, :busy, :draining, or :all (default)
-  
+
   ## Returns
   List of workers matching the status
   """
@@ -84,7 +86,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @doc """
   Get worker by ID.
-  
+
   ## Returns
   - {:ok, worker} if found
   - {:error, :not_found} if worker doesn't exist
@@ -105,7 +107,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @doc """
   Get pool statistics.
-  
+
   ## Returns
   Map with:
   - total: Total registered workers
@@ -123,11 +125,12 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   def init(_opts) do
     # Create ETS table for fast concurrent reads
     # If table already exists from a previous crashed instance, reuse it
-    table = try do
-      :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])
-    rescue
-      ArgumentError -> :ets.whereis(@table_name)
-    end
+    table =
+      try do
+        :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])
+      rescue
+        ArgumentError -> :ets.whereis(@table_name)
+      end
 
     # Schedule periodic health checks
     schedule_health_check()
@@ -143,11 +146,12 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
       [] ->
         worker = build_worker(worker_id, metadata)
         :ets.insert(@table_name, {worker_id, worker})
-        
+
         Logger.info("Worker registered: #{worker_id} (#{worker.language})")
 
         # Telemetry: worker connected
         total = count_workers()
+
         :telemetry.execute(
           [:cerebelum, :workers, :connected],
           %{count: total},
@@ -155,7 +159,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
         )
 
         {:reply, {:ok, worker}, state}
-        
+
       [{^worker_id, _existing}] ->
         Logger.warning("Worker already registered: #{worker_id}")
         {:reply, {:error, :already_registered}, state}
@@ -171,6 +175,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
         # Telemetry: worker disconnected
         total = count_workers()
+
         :telemetry.execute(
           [:cerebelum, :workers, :disconnected],
           %{count: total},
@@ -178,7 +183,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
         )
 
         {:reply, :ok, state}
-        
+
       [] ->
         {:reply, {:error, :not_found}, state}
     end
@@ -186,26 +191,26 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @impl true
   def handle_call({:get_workers, status}, _from, state) do
-    workers = 
+    workers =
       @table_name
       |> :ets.tab2list()
       |> Enum.map(fn {_id, worker} -> worker end)
       |> filter_by_status(status)
-    
+
     {:reply, workers, state}
   end
 
   @impl true
   def handle_call(:get_stats, _from, state) do
     workers = :ets.tab2list(@table_name) |> Enum.map(fn {_id, w} -> w end)
-    
+
     stats = %{
       total: length(workers),
       idle: count_by_status(workers, :idle),
       busy: count_by_status(workers, :busy),
       draining: count_by_status(workers, :draining)
     }
-    
+
     {:reply, stats, state}
   end
 
@@ -213,17 +218,14 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   def handle_cast({:heartbeat, worker_id, status}, state) do
     case :ets.lookup(@table_name, worker_id) do
       [{^worker_id, worker}] ->
-        updated_worker = %{worker | 
-          last_heartbeat: now(),
-          status: status
-        }
+        updated_worker = %{worker | last_heartbeat: now(), status: status}
         :ets.insert(@table_name, {worker_id, updated_worker})
         Logger.debug("Heartbeat received from worker: #{worker_id}")
-        
+
       [] ->
         Logger.warning("Heartbeat from unregistered worker: #{worker_id}")
     end
-    
+
     {:noreply, state}
   end
 
@@ -252,22 +254,25 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   defp check_worker_health do
     current_time = now()
     timeout_threshold = current_time - div(@heartbeat_timeout_ms, 1000)
-    
-    dead_workers = 
+
+    dead_workers =
       @table_name
       |> :ets.tab2list()
       |> Enum.filter(fn {_id, worker} ->
         worker.last_heartbeat < timeout_threshold
       end)
-    
+
     Enum.each(dead_workers, fn {worker_id, worker} ->
-      Logger.warning("Worker #{worker_id} is dead (last heartbeat: #{current_time - worker.last_heartbeat}s ago), deregistering")
+      Logger.warning(
+        "Worker #{worker_id} is dead (last heartbeat: #{current_time - worker.last_heartbeat}s ago), deregistering"
+      )
+
       :ets.delete(@table_name, worker_id)
-      
+
       # TODO: Trigger task reassignment in P8.3
       # reassign_tasks(worker_id)
     end)
-    
+
     if length(dead_workers) > 0 do
       Logger.info("Deregistered #{length(dead_workers)} dead worker(s)")
     end
@@ -278,6 +283,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   end
 
   defp filter_by_status(workers, :all), do: workers
+
   defp filter_by_status(workers, status) do
     Enum.filter(workers, fn worker -> worker.status == status end)
   end
