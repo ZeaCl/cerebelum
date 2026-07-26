@@ -1,0 +1,20 @@
+#!/bin/bash
+# Pre-commit hook for Cerebelum
+# Run: cp .githooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Or for the whole team: git config core.hooksPath .githooks
+#
+# Fast checks on every commit. Heavy checks run in CI.
+
+set -e
+
+echo "🔍 Pre-commit checks..."
+
+# 1. Check formatting
+echo "  ✓ mix format --check-formatted"
+mix format --check-formatted
+
+# 2. Compile with warnings as errors
+echo "  ✓ mix compile --warnings-as-errors"
+mix compile --warnings-as-errors --force
+
+echo "✅ All pre-commit checks passed!"

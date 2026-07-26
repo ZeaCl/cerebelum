@@ -10,16 +10,96 @@ jobs:
     permissions:
       contents: read
       packages: write
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: smoke_test_pw
+          POSTGRES_DB: cerebelum_smoke
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push yet)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: cerebelum-smoke-test:latest
+
+      - name: Smoke test — start and verify health
+        run: |
+          set -e
+
+          # Run migrations first (like prod does)
+          echo "⏳ Running migrations..."
+          docker run --rm \
+            --network ${{ job.services.postgres.network }} \
+            -e DATABASE_URL="ecto://postgres:smoke_test_pw@postgres:5432/cerebelum_smoke" \
+            -e SECRET_KEY_BASE="sm0ke-test-k3y-f0r-c1-only-d0-n0t-us3" \
+            cerebelum-smoke-test:latest \
+            /app/bin/cerebelum eval "Cerebelum.Release.migrate"
+
+          # Start the application in the background
+          echo "⏳ Starting Cerebelum..."
+          docker run --rm -d --name cerebelum-smoke \
+            --network ${{ job.services.postgres.network }} \
+            -e DATABASE_URL="ecto://postgres:smoke_test_pw@postgres:5432/cerebelum_smoke" \
+            -e MIX_ENV=prod \
+            -e PHX_SERVER=true \
+            -e PORT=4001 \
+            -e SECRET_KEY_BASE="sm0ke-test-k3y-f0r-c1-only-d0-n0t-us3" \
+            -e ENABLE_GRPC_SERVER=false \
+            cerebelum-smoke-test:latest
+
+          # Wait for it to start (up to 60 seconds)
+          echo "⏳ Waiting for Cerebelum to boot..."
+          for i in $(seq 1 30); do
+            if docker logs cerebelum-smoke 2>&1 | grep -q "Running Cerebelum"; then
+              echo "✅ Cerebelum started successfully"
+              break
+            fi
+            if docker logs cerebelum-smoke 2>&1 | grep -q "application_start_failure"; then
+              echo "❌ Cerebelum failed to start!"
+              docker logs cerebelum-smoke
+              docker stop cerebelum-smoke || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+          # Verify no startup errors
+          if docker logs cerebelum-smoke 2>&1 | grep -q "application_start_failure"; then
+            echo "❌ Cerebelum crashed during startup!"
+            docker logs cerebelum-smoke
+            docker stop cerebelum-smoke || true
+            exit 1
+          fi
+
+          echo "✅ Smoke test passed!"
+          docker stop cerebelum-smoke || true
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v5
+
+      - name: Build and push production image
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ghcr.io/zeacl/cerebelum:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
