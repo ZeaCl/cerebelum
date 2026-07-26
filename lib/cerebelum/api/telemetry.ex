@@ -15,7 +15,7 @@ defmodule Cerebelum.API.Telemetry do
     [
       {Plugins.Phoenix, endpoint: Cerebelum.API.Endpoint, router: Cerebelum.API.Router},
       Plugins.Ecto,
-      Plugins.BEAM,
+      Plugins.Beam,
       Plugins.Application,
       Cerebelum.Metrics
     ]
