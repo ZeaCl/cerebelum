@@ -103,6 +103,7 @@ defmodule Cerebelum.MixProject do
 
       # Prometheus metrics export
       {:prom_ex, "~> 1.9"},
+      {:plug_cowboy, "~> 2.6"},
 
       # gRPC for multi-language SDK support
       {:grpc, "~> 0.11"},
