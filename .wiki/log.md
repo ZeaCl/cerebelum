@@ -1,5 +1,14 @@
 # Log
 
+## [2026-07-26] fix | #114 — Crash loop en producción: prom_ex config errors
+**Diagnóstico**: 3 bugs encadenados en `Cerebelum.API.Telemetry` (PR #107):
+1. `Plugins.Phoenix` sin options → `fetch_either!(:router, :endpoints, [otp_app: :cerebelum])` raiseaba `KeyError`
+2. `Plugins.BEAM` no existe → el módulo es `Plugins.Beam` (minúscula)
+3. Falta `plug_cowboy` como dependencia explícita → el release no incluía el módulo y `PromEx` fallaba con `UndefinedFunctionError` al crear el metrics server
+
+**Fix**: 3 commits a `telemetry.ex` y `mix.exs`. El error SCRAM reportado era un efecto secundario del crash loop — una vez que la app arranca estable, las conexiones DB funcionan correctamente.
+**Archivos**: `lib/cerebelum/api/telemetry.ex`, `mix.exs`. **Issues**: #114.
+
 ## [2026-07-24] fix | #110 — handleError no sugiere comando de login
 Cerebelum delega auth en Thalamus, no debe prescribir `zea login`. Cambiado a `Please authenticate first.` en `cli/src/lib/errors.js`. **Archivos**: `cli/src/lib/errors.js`. **Issues**: #110. **PR**: #111.
 
