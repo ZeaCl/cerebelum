@@ -13,7 +13,7 @@ defmodule Cerebelum.API.Telemetry do
   @impl PromEx
   def plugins do
     [
-      Plugins.Phoenix,
+      {Plugins.Phoenix, endpoint: Cerebelum.API.Endpoint, router: Cerebelum.API.Router},
       Plugins.Ecto,
       Plugins.BEAM,
       Plugins.Application,
