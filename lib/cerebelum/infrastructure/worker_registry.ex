@@ -13,8 +13,8 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   Architecture:
   - DB (worker_registrations table) = source of truth
   - ETS (:worker_registry table) = hot cache for runtime lookups
-  - On boot: load all online workers from DB into ETS
-  - On register: upsert to DB + insert into ETS
+  - On boot: load all workers from DB into ETS (status: :offline by default)
+  - On register: upsert to DB + insert/update in ETS
   - On unregister: mark offline in DB + remove from ETS
   - Heartbeats: update ETS immediately, flush to DB periodically
   """
@@ -319,27 +319,12 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
     now_time = worker.last_heartbeat
 
     try do
-      existing = Repo.get_by(WorkerRegistration, worker_id: worker.worker_id)
-
-      if existing do
-        # Reactivate: update capabilities, metadata, version, and set online
-        existing
-        |> WorkerRegistration.changeset(%{
-          language: worker.language,
-          capabilities: worker.capabilities,
-          version: worker.version,
-          metadata: worker.metadata,
-          status: "online",
-          registered_at: now_time,
-          last_heartbeat: now_time
-        })
-        |> Repo.update!()
-
-        Logger.debug("Worker reactivated in DB: #{worker.worker_id}")
-      else
-        # New registration
-        %WorkerRegistration{}
-        |> WorkerRegistration.changeset(%{
+      # Use on_conflict upsert to avoid TOCTOU race between get_by and insert.
+      # If two workers register simultaneously with the same ID (unlikely but
+      # possible on reconnect storms), the DB unique constraint ensures exactly
+      # one row with the latest metadata.
+      changeset =
+        WorkerRegistration.changeset(%WorkerRegistration{}, %{
           worker_id: worker.worker_id,
           language: worker.language,
           capabilities: worker.capabilities,
@@ -349,10 +334,24 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
           registered_at: now_time,
           last_heartbeat: now_time
         })
-        |> Repo.insert!()
 
-        Logger.debug("Worker persisted to DB: #{worker.worker_id}")
-      end
+      Repo.insert!(
+        changeset,
+        on_conflict: [
+          set: [
+            language: worker.language,
+            capabilities: worker.capabilities,
+            version: worker.version,
+            metadata: worker.metadata,
+            status: "online",
+            registered_at: now_time,
+            last_heartbeat: now_time
+          ]
+        ],
+        conflict_target: :worker_id
+      )
+
+      Logger.debug("Worker persisted to DB: #{worker.worker_id}")
     rescue
       error ->
         Logger.warning("Failed to persist worker #{worker.worker_id} to DB: #{inspect(error)}")
