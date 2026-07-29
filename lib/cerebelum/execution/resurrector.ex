@@ -122,7 +122,7 @@ defmodule Cerebelum.Execution.Resurrector do
   @impl true
   def init(_opts) do
     # Don't start resurrector in test environment
-    if System.get_env("MIX_ENV") == "test" do
+    if Application.get_env(:cerebelum, :env) == :test do
       Logger.debug("Resurrector disabled in test environment")
       :ignore
     else

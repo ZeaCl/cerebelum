@@ -1,5 +1,20 @@
 # Log
 
+## [2026-07-29] fix | #115 — Workflows desaparecen al reiniciar el worker o Cerebelum — no hay persistencia
+**Diagnóstico**: `Cerebelum.Infrastructure.WorkerRegistry` almacenaba workers y sus capabilities (workflows) solo en ETS (memoria). Al reiniciar Cerebelum o perder un worker, todos los workflows registrados desaparecían. El `WorkerRegistry` legacy (`lib/cerebelum/worker_registry.ex`) también era solo en memoria pero no estaba en uso.
+
+**Fix**: 
+1. Nueva tabla `worker_registrations` en PostgreSQL (migración) + schema Ecto `WorkerRegistration`
+2. `WorkerRegistry.init` carga workers desde DB al iniciar, con graceful degradation si DB no disponible (modo test)
+3. `register_worker` → upsert a DB + insert en ETS. Si el worker ya existía (offline), se reactiva
+4. `unregister_worker` → marca offline en DB + borra de ETS
+5. `heartbeat` → solo ETS (hot path), flush a DB cada 60s
+6. `health_check` → al detectar dead workers, marca offline en DB + borra de ETS
+
+**Bonus fix**: Arreglada detección de test environment en `WorkflowScheduler` y `Resurrector` — usaban `System.get_env("MIX_ENV")` que no funciona con `mix test`, causando crashes en cascada del supervisor. Cambiado a `Application.get_env(:cerebelum, :env)`. Esto redujo fallas en test suite de 220 → 164.
+
+**Archivos**: `lib/cerebelum/infrastructure/worker_registry.ex`, `lib/cerebelum/infrastructure/schemas/worker_registration.ex` (nuevo), `priv/repo/migrations/20260730000000_create_worker_registrations_table.exs` (nuevo), `lib/cerebelum/infrastructure/workflow_scheduler.ex`, `lib/cerebelum/execution/resurrector.ex`, `config/test.exs`, `lib/cerebelum/worker_registry.ex` (deprecation notice). **Issues**: #115.
+
 ## [2026-07-26] fix | #114 — Crash loop en producción: prom_ex config errors
 **Diagnóstico**: 3 bugs encadenados en `Cerebelum.API.Telemetry` (PR #107):
 1. `Plugins.Phoenix` sin options → `fetch_either!(:router, :endpoints, [otp_app: :cerebelum])` raiseaba `KeyError`

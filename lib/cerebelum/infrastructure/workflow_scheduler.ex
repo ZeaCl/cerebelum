@@ -115,7 +115,7 @@ defmodule Cerebelum.Infrastructure.WorkflowScheduler do
   @impl true
   def init(_opts) do
     # Don't start scheduler in test environment
-    if System.get_env("MIX_ENV") == "test" do
+    if Application.get_env(:cerebelum, :env) == :test do
       Logger.debug("WorkflowScheduler disabled in test environment")
       :ignore
     else

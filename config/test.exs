@@ -10,6 +10,9 @@ config :cerebelum, Cerebelum.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10
 
+# Environment marker (used to skip DB operations in test mode)
+config :cerebelum, env: :test
+
 # gRPC server disabled in test environment
 config :cerebelum,
   enable_grpc_server: false

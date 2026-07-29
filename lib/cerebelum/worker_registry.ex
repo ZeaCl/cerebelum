@@ -2,6 +2,10 @@ defmodule Cerebelum.WorkerRegistry do
   @moduledoc """
   Registry of Python workers and their workflows.
 
+  **DEPRECATED**: This module has been superseded by
+  `Cerebelum.Infrastructure.WorkerRegistry` which includes DB persistence.
+  See issue #115 for context.
+
   Stores workflow metadata received via gRPC Register calls
   and exposes it to the REST API.
   """
