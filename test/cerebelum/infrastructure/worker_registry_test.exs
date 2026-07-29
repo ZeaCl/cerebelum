@@ -35,11 +35,26 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryTest do
       assert worker.last_heartbeat > 0
     end
 
-    test "returns error when registering duplicate worker" do
+    test "rejects duplicate register for already-idle worker" do
       metadata = %{language: "typescript", capabilities: [], version: "1.0.0"}
 
+      # First registration: worker is :idle
       assert {:ok, _} = WorkerRegistry.register_worker("worker-1", metadata)
+      # Duplicate: worker is still :idle → rejected
       assert {:error, :already_registered} = WorkerRegistry.register_worker("worker-1", metadata)
+    end
+
+    test "allows re-registration of offline worker (reconnect after restart)" do
+      metadata = %{language: "kotlin", capabilities: ["Test"], version: "1.0.0"}
+
+      # First register
+      assert {:ok, _} = WorkerRegistry.register_worker("worker-2", metadata)
+      # Mark as offline (simulating DB load after restart)
+      [{_, w}] = :ets.lookup(:worker_registry, "worker-2")
+      :ets.insert(:worker_registry, {"worker-2", %{w | status: :offline}})
+      # Re-register should succeed now
+      assert {:ok, re_registered} = WorkerRegistry.register_worker("worker-2", metadata)
+      assert re_registered.status == :idle
     end
 
     test "registers multiple workers with different IDs" do
