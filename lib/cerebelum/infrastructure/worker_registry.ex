@@ -1,24 +1,37 @@
 defmodule Cerebelum.Infrastructure.WorkerRegistry do
   @moduledoc """
-  Manages the pool of registered SDK workers with health monitoring.
+  Manages the pool of registered SDK workers with health monitoring and DB persistence.
 
   Responsibilities:
   - Track registered workers with metadata (language, capabilities, status)
+  - Persist worker registrations to DB so workflows survive Cerebelum restarts
   - Monitor worker health via heartbeats
   - Detect and deregister dead workers (3 missed heartbeats = 30s)
   - Provide worker pool status and queries
   - Support graceful worker shutdown (draining)
 
-  Workers are stored in an ETS table for fast concurrent lookups.
+  Architecture:
+  - DB (worker_registrations table) = source of truth
+  - ETS (:worker_registry table) = hot cache for runtime lookups
+  - On boot: load all workers from DB into ETS (status: :offline by default)
+  - On register: upsert to DB + insert/update in ETS
+  - On unregister: mark offline in DB + remove from ETS
+  - Heartbeats: update ETS immediately, flush to DB periodically
   """
 
   use GenServer
   require Logger
 
+  alias Cerebelum.Infrastructure.Schemas.WorkerRegistration
+  alias Cerebelum.Repo
+  import Ecto.Query, only: [from: 2]
+
   # 30 seconds = 3 missed heartbeats @ 10s interval
   @heartbeat_timeout_ms 30_000
   # Check every 10 seconds
   @health_check_interval_ms 10_000
+  # Flush heartbeat timestamps to DB every 60 seconds (6 heartbeats)
+  @db_flush_interval_ms 60_000
   @table_name :worker_registry
 
   # Client API
@@ -32,6 +45,8 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
   @doc """
   Register a new worker with metadata.
+
+  If the worker was previously registered (offline in DB), it is reactivated.
 
   ## Parameters
   - worker_id: Unique identifier for the worker
@@ -124,7 +139,6 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   @impl true
   def init(_opts) do
     # Create ETS table for fast concurrent reads
-    # If table already exists from a previous crashed instance, reuse it
     table =
       try do
         :ets.new(@table_name, [:named_table, :set, :public, read_concurrency: true])
@@ -132,10 +146,17 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
         ArgumentError -> :ets.whereis(@table_name)
       end
 
+    # Load persisted worker registrations from DB into ETS (skip in test)
+    if Application.get_env(:cerebelum, :env) != :test do
+      load_workers_from_db()
+      schedule_db_flush()
+      Logger.info("WorkerRegistry started with DB persistence")
+    else
+      Logger.info("WorkerRegistry started (test mode, DB persistence disabled)")
+    end
+
     # Schedule periodic health checks
     schedule_health_check()
-
-    Logger.info("WorkerRegistry started")
 
     {:ok, %{table: table}}
   end
@@ -144,12 +165,12 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   def handle_call({:register, worker_id, metadata}, _from, state) do
     case :ets.lookup(@table_name, worker_id) do
       [] ->
+        # New worker — register in ETS + DB
         worker = build_worker(worker_id, metadata)
+        persist_worker(worker)
         :ets.insert(@table_name, {worker_id, worker})
 
         Logger.info("Worker registered: #{worker_id} (#{worker.language})")
-
-        # Telemetry: worker connected
         total = count_workers()
 
         :telemetry.execute(
@@ -160,9 +181,28 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
 
         {:reply, {:ok, worker}, state}
 
-      [{^worker_id, _existing}] ->
-        Logger.warning("Worker already registered: #{worker_id}")
-        {:reply, {:error, :already_registered}, state}
+      [{^worker_id, existing}] ->
+        # Only allow re-registration if worker is offline (loaded from DB
+        # after restart) or busy/draining (reconnecting after disconnect).
+        # Reject duplicate register from already-active workers to avoid
+        # masking bugs in SDK clients.
+        if existing.status == :idle do
+          Logger.warning(
+            "Worker #{worker_id} already active with status :idle, rejecting duplicate register"
+          )
+
+          {:reply, {:error, :already_registered}, state}
+        else
+          worker = build_worker(worker_id, metadata)
+          persist_worker(worker)
+          :ets.insert(@table_name, {worker_id, worker})
+
+          Logger.info(
+            "Worker re-registered (was #{existing.status}): #{worker_id} (#{worker.language})"
+          )
+
+          {:reply, {:ok, worker}, state}
+        end
     end
   end
 
@@ -170,7 +210,12 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
   def handle_call({:unregister, worker_id, reason}, _from, state) do
     case :ets.lookup(@table_name, worker_id) do
       [{^worker_id, _worker}] ->
+        # Mark as offline in DB
+        mark_worker_offline(worker_id)
+
+        # Remove from ETS cache
         :ets.delete(@table_name, worker_id)
+
         Logger.info("Worker unregistered: #{worker_id}, reason: #{reason}")
 
         # Telemetry: worker disconnected
@@ -236,20 +281,161 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
     {:noreply, state}
   end
 
-  # Private Functions
+  @impl true
+  def handle_info(:db_flush, state) do
+    flush_heartbeats_to_db()
+    schedule_db_flush()
+    {:noreply, state}
+  end
 
-  defp build_worker(worker_id, metadata) do
+  # ── DB Persistence ──────────────────────────────────
+
+  defp load_workers_from_db do
+    try do
+      registrations = Repo.all(WorkerRegistration)
+      count = length(registrations)
+
+      Enum.each(registrations, fn reg ->
+        worker = db_registration_to_worker(reg)
+        :ets.insert(@table_name, {reg.worker_id, worker})
+      end)
+
+      Logger.info("Loaded #{count} worker registration(s) from DB into ETS cache")
+    rescue
+      error ->
+        Logger.warning("Failed to load worker registrations from DB: #{inspect(error)}")
+    end
+  end
+
+  defp persist_worker(worker) do
+    if Application.get_env(:cerebelum, :env) == :test do
+      Logger.debug("Worker persistence skipped in test mode: #{worker.worker_id}")
+    else
+      _persist_worker_to_db(worker)
+    end
+  end
+
+  defp _persist_worker_to_db(worker) do
+    now_time = worker.last_heartbeat
+
+    try do
+      # Use on_conflict upsert to avoid TOCTOU race between get_by and insert.
+      # If two workers register simultaneously with the same ID (unlikely but
+      # possible on reconnect storms), the DB unique constraint ensures exactly
+      # one row with the latest metadata.
+      changeset =
+        WorkerRegistration.changeset(%WorkerRegistration{}, %{
+          worker_id: worker.worker_id,
+          language: worker.language,
+          capabilities: worker.capabilities,
+          version: worker.version,
+          metadata: worker.metadata,
+          status: "online",
+          registered_at: now_time,
+          last_heartbeat: now_time
+        })
+
+      Repo.insert!(
+        changeset,
+        on_conflict: [
+          set: [
+            language: worker.language,
+            capabilities: worker.capabilities,
+            version: worker.version,
+            metadata: worker.metadata,
+            status: "online",
+            registered_at: now_time,
+            last_heartbeat: now_time
+          ]
+        ],
+        conflict_target: :worker_id
+      )
+
+      Logger.debug("Worker persisted to DB: #{worker.worker_id}")
+    rescue
+      error ->
+        Logger.warning("Failed to persist worker #{worker.worker_id} to DB: #{inspect(error)}")
+    end
+  end
+
+  defp mark_worker_offline(worker_id) do
+    if Application.get_env(:cerebelum, :env) == :test do
+      Logger.debug("Worker offline marking skipped in test mode: #{worker_id}")
+    else
+      _mark_worker_offline_in_db(worker_id)
+    end
+  end
+
+  defp _mark_worker_offline_in_db(worker_id) do
+    try do
+      case Repo.get_by(WorkerRegistration, worker_id: worker_id) do
+        nil ->
+          Logger.debug("Worker not found in DB for offline marking: #{worker_id}")
+
+        reg ->
+          reg
+          |> WorkerRegistration.changeset(%{
+            status: "offline",
+            last_heartbeat: now()
+          })
+          |> Repo.update!()
+
+          Logger.debug("Worker marked offline in DB: #{worker_id}")
+      end
+    rescue
+      error ->
+        Logger.warning("Failed to mark worker #{worker_id} offline in DB: #{inspect(error)}")
+    end
+  end
+
+  defp flush_heartbeats_to_db do
+    if Application.get_env(:cerebelum, :env) == :test do
+      :ok
+    else
+      _flush_heartbeats_to_db()
+    end
+  end
+
+  defp _flush_heartbeats_to_db do
+    workers = :ets.tab2list(@table_name)
+
+    if workers != [] do
+      try do
+        worker_ids = Enum.map(workers, fn {id, _worker} -> id end)
+        now_ts = now()
+
+        # Bulk UPDATE instead of N individual queries
+        {count, _} =
+          Repo.update_all(
+            from(w in WorkerRegistration, where: w.worker_id in ^worker_ids),
+            set: [last_heartbeat: now_ts, status: "online"]
+          )
+
+        Logger.debug("Flushed #{count} heartbeat(s) to DB")
+      rescue
+        error ->
+          Logger.warning("Failed to flush heartbeats to DB: #{inspect(error)}")
+      end
+    end
+  end
+
+  defp db_registration_to_worker(reg) do
     %{
-      worker_id: worker_id,
-      language: Map.get(metadata, :language, "unknown"),
-      capabilities: Map.get(metadata, :capabilities, []),
-      version: Map.get(metadata, :version, "0.0.0"),
-      metadata: Map.get(metadata, :metadata, %{}),
-      status: :idle,
-      registered_at: now(),
-      last_heartbeat: now()
+      worker_id: reg.worker_id,
+      language: reg.language,
+      capabilities: reg.capabilities,
+      version: reg.version,
+      metadata: reg.metadata,
+      # Workers loaded from DB are offline until they explicitly re-register.
+      # This prevents race conditions where a worker appears :idle after
+      # a Cerebelum restart when the real worker process is long dead.
+      status: :offline,
+      registered_at: reg.registered_at,
+      last_heartbeat: reg.last_heartbeat
     }
   end
+
+  # ── Health Check ────────────────────────────────────
 
   defp check_worker_health do
     current_time = now()
@@ -267,6 +453,10 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
         "Worker #{worker_id} is dead (last heartbeat: #{current_time - worker.last_heartbeat}s ago), deregistering"
       )
 
+      # Mark offline in DB
+      mark_worker_offline(worker_id)
+
+      # Remove from ETS cache
       :ets.delete(@table_name, worker_id)
 
       # TODO: Trigger task reassignment in P8.3
@@ -278,8 +468,27 @@ defmodule Cerebelum.Infrastructure.WorkerRegistry do
     end
   end
 
+  # ── Helpers ─────────────────────────────────────────
+
+  defp build_worker(worker_id, metadata) do
+    %{
+      worker_id: worker_id,
+      language: Map.get(metadata, :language, "unknown"),
+      capabilities: Map.get(metadata, :capabilities, []),
+      version: Map.get(metadata, :version, "0.0.0"),
+      metadata: Map.get(metadata, :metadata, %{}),
+      status: :idle,
+      registered_at: now(),
+      last_heartbeat: now()
+    }
+  end
+
   defp schedule_health_check do
     Process.send_after(self(), :health_check, @health_check_interval_ms)
+  end
+
+  defp schedule_db_flush do
+    Process.send_after(self(), :db_flush, @db_flush_interval_ms)
   end
 
   defp filter_by_status(workers, :all), do: workers
