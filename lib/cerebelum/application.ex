@@ -6,6 +6,9 @@ defmodule Cerebelum.Application do
 
   @impl true
   def start(_type, _args) do
+    # Run database migrations on startup (skip in test)
+    run_migrations()
+
     # Base children that always start
     base_children = [
       # HTTP API (Phoenix Endpoint)
@@ -116,6 +119,24 @@ defmodule Cerebelum.Application do
     else
       Logger.warning("gRPC TLS: certs not found, starting without TLS")
       []
+    end
+  end
+
+  # ── Migrations ────────────────────────────────────
+
+  defp run_migrations do
+    if Application.get_env(:cerebelum, :env) == :test do
+      Logger.debug("Migrations: skipped in test environment")
+    else
+      Logger.info("Running database migrations...")
+
+      try do
+        Cerebelum.Release.migrate()
+        Logger.info("Migrations completed successfully")
+      rescue
+        e ->
+          Logger.error("Migration failed: #{inspect(e)}")
+      end
     end
   end
 

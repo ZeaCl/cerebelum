@@ -224,12 +224,33 @@ defmodule Cerebelum.Execution.StateReconstructor do
             "Elixir." <> event.workflow_module
           end
 
-        String.to_existing_atom(module_string)
+        # Try existing atom first (Elixir workflows), fall back to creating
+        # a new atom for delegated/Python workflows that aren't compiled modules
+        safe_string_to_atom(module_string)
       else
         event.workflow_module
       end
 
-    workflow_metadata = Cerebelum.Workflow.Metadata.extract(workflow_module)
+    workflow_metadata =
+      try do
+        Cerebelum.Workflow.Metadata.extract(workflow_module)
+      rescue
+        _ ->
+          # Non-Elixir workflow (Python/delegated) — create minimal metadata
+          Logger.debug(
+            "Workflow module #{inspect(workflow_module)} is not an Elixir module, using minimal metadata"
+          )
+
+          %{
+            module: workflow_module,
+            timeline: [],
+            diverges: %{},
+            branches: %{},
+            version: event.workflow_version || "0.0.0",
+            functions: %{},
+            graph: %{}
+          }
+      end
 
     # Create context
     context = %Cerebelum.Context{
@@ -579,6 +600,17 @@ defmodule Cerebelum.Execution.StateReconstructor do
   defp apply_event(_event, state) do
     Logger.warning("Unknown event type encountered during reconstruction")
     %{state | events_applied: state.events_applied + 1}
+  end
+
+  # Helper to safely convert a module string to an atom.
+  # Tries existing atom first (preferred for Elixir modules),
+  # falls back to creating a new atom for non-Elixir/delegated workflows.
+  defp safe_string_to_atom(module_string) do
+    try do
+      String.to_existing_atom(module_string)
+    rescue
+      ArgumentError -> String.to_atom(module_string)
+    end
   end
 
   # Helper to safely convert to atom

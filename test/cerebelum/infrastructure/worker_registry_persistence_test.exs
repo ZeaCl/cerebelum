@@ -82,6 +82,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryPersistenceTest do
 
       # Simulate re-registration: update to online with new capabilities
       existing = Repo.get_by!(WorkerRegistration, worker_id: "reactivate-1")
+
       existing
       |> WorkerRegistration.changeset(%{
         language: "python",
@@ -122,6 +123,7 @@ defmodule Cerebelum.Infrastructure.WorkerRegistryPersistenceTest do
 
       # Mark offline
       reg = Repo.get_by!(WorkerRegistration, worker_id: "offline-1")
+
       reg
       |> WorkerRegistration.changeset(%{status: "offline", last_heartbeat: now_ts + 10})
       |> Repo.update!()
