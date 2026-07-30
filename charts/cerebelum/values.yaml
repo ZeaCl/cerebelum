@@ -1,0 +1,40 @@
+# ── Imagen ──────────────────────────────────────
+image:
+  repository: cerebelum
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# ── Recursos ────────────────────────────────────
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# ── Ingress ─────────────────────────────────────
+ingress:
+  enabled: true
+  host: cerebelum.k8s.local
+  tls:
+    enabled: false
+
+# ── Servicio ────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 4001
+
+# ── Health checks ───────────────────────────────
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 4001
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 4001
+
+# ── Entorno ─────────────────────────────────────
+env:
+  phxHost: cerebelum.zea.localhost

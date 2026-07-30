@@ -1,0 +1,6 @@
+apiVersion: v2
+name: cerebelum
+description: Motor de workflows
+type: application
+version: 0.1.0
+appVersion: "latest"
