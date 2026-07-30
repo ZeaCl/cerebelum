@@ -80,7 +80,9 @@ defmodule Cerebelum.API.DevCertController do
                "#{crt_path}.csr",
                "-subj",
                "/CN=dev-#{user_hash}"
-             ], stderr_to_stdout: true),
+             ],
+             stderr_to_stdout: true
+           ),
          serial = :rand.uniform(999_999),
          {_, 0} <-
            System.cmd(
@@ -100,7 +102,9 @@ defmodule Cerebelum.API.DevCertController do
                "#{serial}",
                "-out",
                crt_path
-             ], stderr_to_stdout: true) do
+             ],
+             stderr_to_stdout: true
+           ) do
       File.rm("#{crt_path}.csr")
       Logger.info("Dev cert generated for #{user_id}")
       {:ok, File.read!(ca_crt), File.read!(crt_path), File.read!(key_path)}
