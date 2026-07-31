@@ -149,11 +149,16 @@ defmodule Cerebelum.API.ExecutionController do
   def show(conn, %{"id" => execution_id}) do
     case Cerebelum.get_execution_status(execution_id) do
       {:ok, status} ->
+        # Fallback: if current_step is nil, extract from event stream
+        current_step = status.current_step || fallback_current_step(execution_id)
+        current_step_data = fallback_current_step_data(execution_id)
+
         json(conn, %{
           execution_id: execution_id,
           state: status.state,
           progress: status.timeline_progress,
-          current_step: status.current_step,
+          current_step: current_step,
+          current_step_data: current_step_data,
           results: status.results,
           error: status.error_message
         })
@@ -405,5 +410,21 @@ defmodule Cerebelum.API.ExecutionController do
           nil
       end
     end)
+  end
+
+  # ── Fallback helpers for show endpoint ─────────────────────
+
+  defp fallback_current_step(execution_id) do
+    case EventStore.get_events(execution_id) do
+      {:ok, events} -> extract_current_step(events)
+      _ -> nil
+    end
+  end
+
+  defp fallback_current_step_data(execution_id) do
+    case EventStore.get_events(execution_id) do
+      {:ok, events} -> extract_current_step_data(events)
+      _ -> nil
+    end
   end
 end
