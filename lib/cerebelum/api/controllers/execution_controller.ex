@@ -343,14 +343,58 @@ defmodule Cerebelum.API.ExecutionController do
         true -> "running"
       end
 
+    # Extract current step from the last StepStarted/StepCompleted event
+    current_step = extract_current_step(events)
+    current_step_data = extract_current_step_data(events)
+
     %{
       execution_id: exec_id,
+      id: exec_id,
       status: status,
+      current_step: current_step,
+      current_step_data: current_step_data,
       workflow:
         started &&
           (get_in(started.event_data, ["blueprint_name"]) ||
              get_in(started.event_data, ["workflow_module"])),
       events_count: length(events)
     }
+  end
+
+  defp extract_current_step(events) do
+    events
+    |> Enum.reverse()
+    |> Enum.find_value(fn e ->
+      case e.event_type do
+        "StepStartedEvent" -> get_in(e.event_data, ["step_name"])
+        "StepCompletedEvent" -> get_in(e.event_data, ["step_name"])
+        "StepFailedEvent" -> get_in(e.event_data, ["step_name"])
+        "ApprovalRequestedEvent" -> get_in(e.event_data, ["step_name"])
+        _ -> nil
+      end
+    end)
+  end
+
+  defp extract_current_step_data(events) do
+    events
+    |> Enum.reverse()
+    |> Enum.find_value(fn e ->
+      case e.event_type do
+        "StepCompletedEvent" ->
+          case get_in(e.event_data, ["result"]) do
+            result when is_map(result) -> result
+            _ -> nil
+          end
+
+        "ApprovalRequestedEvent" ->
+          case get_in(e.event_data, ["approval_data"]) do
+            data when is_map(data) -> data
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+    end)
   end
 end
