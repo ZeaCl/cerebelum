@@ -1,5 +1,8 @@
 import Config
 
+# Configure Thalamus integration for JWT validation
+config :cerebelum, :thalamus, jwks_url: "http://thalamus:4000/.well-known/jwks.json"
+
 # Configure Ecto Repo
 config :cerebelum, Cerebelum.Repo,
   database: "cerebelum_core_dev",

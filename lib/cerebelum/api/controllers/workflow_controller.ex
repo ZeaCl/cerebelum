@@ -99,6 +99,29 @@ defmodule Cerebelum.API.WorkflowController do
     python_workers = Cerebelum.Infrastructure.WorkerRegistry.get_workers()
     workflow = find_workflow_in_workers(python_workers, workflow_id)
 
+    # Fallback: search in BlueprintRegistry
+    workflow =
+      case workflow do
+        nil ->
+          case BlueprintRegistry.get_blueprint(workflow_id) do
+            {:ok, bp} ->
+              %{
+                id: bp[:id] || workflow_id,
+                name: bp[:name] || workflow_id,
+                label: bp[:name] || workflow_id,
+                version: bp[:version] || "0.1.0",
+                steps: bp[:steps] || [],
+                language: bp[:language] || "python"
+              }
+
+            _ ->
+              nil
+          end
+
+        wf ->
+          wf
+      end
+
     case workflow do
       nil ->
         conn
@@ -116,9 +139,16 @@ defmodule Cerebelum.API.WorkflowController do
   Returns the Python source code for a workflow.
   """
   def code(conn, %{"id" => workflow_id}) do
-    conn
-    |> put_status(:not_found)
-    |> json(%{error: "Source code not available in production"})
+    case BlueprintRegistry.get_blueprint(workflow_id) do
+      {:ok, bp} ->
+        source = bp[:source] || bp[:code] || ""
+        json(conn, %{data: %{source: source}})
+
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Source code not found"})
+    end
   end
 
   @doc """

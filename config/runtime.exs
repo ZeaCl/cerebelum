@@ -7,6 +7,12 @@ import Config
 
 # Runtime production configuration
 if config_env() == :prod do
+  # Thalamus URL for JWKS-based JWT validation
+  thalamus_url =
+    System.get_env("THALAMUS_URL", "http://thalamus:4000")
+
+  config :cerebelum, :thalamus, jwks_url: thalamus_url <> "/.well-known/jwks.json"
+
   database_url =
     System.get_env("DATABASE_URL") ||
       raise """
