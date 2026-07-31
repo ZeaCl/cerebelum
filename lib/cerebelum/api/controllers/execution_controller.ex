@@ -176,9 +176,14 @@ defmodule Cerebelum.API.ExecutionController do
         # Check if it's a completed/failed execution in event store
         case StateReconstructor.reconstruct(execution_id) do
           {:ok, state} ->
+            current_step = fallback_current_step(execution_id)
+            current_step_data = fallback_current_step_data(execution_id)
+
             json(conn, %{
               execution_id: execution_id,
               state: state[:status] || :unknown,
+              current_step: current_step,
+              current_step_data: current_step_data,
               results: Cerebelum.Execution.Engine.Data.json_safe_results(state[:results] || %{}),
               error: state[:error]
             })
@@ -381,6 +386,7 @@ defmodule Cerebelum.API.ExecutionController do
     |> Enum.find_value(fn e ->
       case e.event_type do
         "StepStartedEvent" -> get_in(e.event_data, ["step_name"])
+        "StepExecutedEvent" -> get_in(e.event_data, ["step_name"])
         "StepCompletedEvent" -> get_in(e.event_data, ["step_name"])
         "StepFailedEvent" -> get_in(e.event_data, ["step_name"])
         "ApprovalRequestedEvent" -> get_in(e.event_data, ["step_name"])
@@ -394,6 +400,12 @@ defmodule Cerebelum.API.ExecutionController do
     |> Enum.reverse()
     |> Enum.find_value(fn e ->
       case e.event_type do
+        "StepExecutedEvent" ->
+          case get_in(e.event_data, ["result"]) do
+            result when is_map(result) -> result
+            _ -> nil
+          end
+
         "StepCompletedEvent" ->
           case get_in(e.event_data, ["result"]) do
             result when is_map(result) -> result
