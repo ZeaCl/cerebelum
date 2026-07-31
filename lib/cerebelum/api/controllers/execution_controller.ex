@@ -149,9 +149,18 @@ defmodule Cerebelum.API.ExecutionController do
   def show(conn, %{"id" => execution_id}) do
     case Cerebelum.get_execution_status(execution_id) do
       {:ok, status} ->
-        # Fallback: if current_step is nil, extract from event stream
-        current_step = status.current_step || fallback_current_step(execution_id)
-        current_step_data = fallback_current_step_data(execution_id)
+        # Fallback: if current_step is nil or "None", extract from event stream
+        current_step_raw = status.current_step
+
+        current_step =
+          if is_nil(current_step_raw) or current_step_raw == "None",
+            do: fallback_current_step(execution_id),
+            else: current_step_raw
+
+        current_step_data =
+          if is_nil(current_step_raw) or current_step_raw == "None",
+            do: fallback_current_step_data(execution_id),
+            else: nil
 
         json(conn, %{
           execution_id: execution_id,
