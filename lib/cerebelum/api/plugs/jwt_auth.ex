@@ -66,7 +66,12 @@ defmodule Cerebelum.API.Plugs.JWTAuth do
       Application.get_env(:cerebelum, :thalamus, [])
       |> Keyword.get(:jwks_url, "http://thalamus:4000/.well-known/jwks.json")
 
-    case :httpc.request(:get, {String.to_charlist(jwks_url), []}, [], []) do
+    case :httpc.request(
+           :get,
+           {String.to_charlist(jwks_url), []},
+           [timeout: 5000, connect_timeout: 2000],
+           []
+         ) do
       {:ok, {{_, 200, _}, _, body}} ->
         case Jason.decode(to_string(body)) do
           {:ok, jwks} -> {:ok, jwks}
