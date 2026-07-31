@@ -388,8 +388,17 @@ defmodule Cerebelum.API.ExecutionController do
 
         "ApprovalRequestedEvent" ->
           case get_in(e.event_data, ["approval_data"]) do
-            data when is_map(data) -> data
-            _ -> nil
+            %{"data" => inner} when is_map(inner) ->
+              # Flatten: merge nested "data" into top level so fund_id is at
+              # current_step_data.fund_id (what funds.html expects)
+              approval = get_in(e.event_data, ["approval_data"]) || %{}
+              Map.merge(inner, Map.drop(approval, ["data"]))
+
+            data when is_map(data) ->
+              data
+
+            _ ->
+              nil
           end
 
         _ ->
