@@ -1,8 +1,5 @@
 defmodule Cerebelum.FundLifecycleWorkflow do
-  @moduledoc """
-  Fund Lifecycle Workflow — Elixir nativo en Cerebelum.
-  Cada estado del ciclo de vida es un step con HITL nativo.
-  """
+  @moduledoc "Fund Lifecycle Workflow — Elixir nativo en Cerebelum."
 
   use Cerebelum.Workflow
   require Logger
@@ -11,30 +8,26 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   workflow do
     timeline do
-      create_fund()
-      |> activate()
-      |> first_close()
-      |> start_harvesting()
-      |> close_fund()
-      |> liquidate()
-      |> notify()
+      create_fund() |> activate() |> to_active() |>
+        start_harvesting() |> close_fund() |> liquidate() |> notify()
     end
   end
 
-  # ── HTTP Helper ───────────────────────────────────────────────
+  # ── HTTP ─────────────────────────────────────────────────────
 
   defp api(method, path, body \\ nil, ctx \\ nil) do
     url = @fund_url <> path
     headers = [{'content-type', 'application/json'}]
     headers = if t = get_auth(ctx), do: [{'authorization', 'Bearer #{t}'} | headers], else: headers
     payload = if body, do: Jason.encode!(body), else: ""
-
     case :httpc.request(method, {String.to_charlist(url), headers, 'application/json', payload}, [], []) do
-      {:ok, {{_, status, _}, _, resp_body}} when status in 200..299 -> Jason.decode!(resp_body)
-      {:ok, {{_, status, _}, _, resp_body}} -> Logger.error("[FundWorkflow] #{method} #{path} → #{status}"); raise "API #{status}"
-      {:error, reason} -> Logger.error("[FundWorkflow] #{method} #{path} → #{inspect(reason)}"); raise "API error"
+      {:ok, {{_, s, _}, _, b}} when s in 200..299 -> Jason.decode!(b)
+      {:ok, {{_, s, _}, _, b}} -> raise "API #{s}: #{b}"
+      {:error, r} -> raise "API error: #{inspect(r)}"
     end
   end
+
+  defp get_fund(id, ctx), do: api(:get, "/funds/#{id}", nil, ctx)
 
   defp get_auth(%{metadata: %{auth_token: t}}) when is_binary(t), do: t
   defp get_auth(_), do: nil
@@ -43,113 +36,129 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   defp int(s) when is_binary(s), do: String.to_integer(s)
   defp int(_), do: 0
 
-  defp approve_action(ctx) do
+  defp action(ctx) do
     case ctx.inputs |> Map.get("approve_response", ctx.inputs) do
       %{"action" => a} = d -> {a, d}
       _ -> {nil, %{}}
     end
   end
 
-  # ── Step: Create Fund (DRAFT) ─────────────────────────────────
+  defp verify!(ctx, id, expected) do
+    fund = get_fund(id, ctx)
+    actual = fund["status"] || ""
+    if actual != expected do
+      raise "Status mismatch: expected #{expected}, got #{actual}"
+    end
+    fund
+  end
+
+  # ── create_fund ───────────────────────────────────────────────
 
   def create_fund(%{inputs: inputs} = ctx) do
     fd = inputs["fund_data"] || %{}
     name = fd["name"] || "Fondo"
-    Logger.info("[FundWorkflow] create_fund: #{name} exec=#{ctx.execution_id}")
+    id = ctx.execution_id
+    Logger.info("[FundWorkflow] create_fund: #{name}")
 
     fund = api(:post, "/funds/draft", %{
-      execution_id: ctx.execution_id, name: name, type: fd["type"] || "PE",
-      currency: "USD", target_size: 5_000_000, management_fee: 0.02,
-      carried_interest: 0.20, hurdle_rate: 0.08, fund_term_years: 10,
-      investment_period_years: 5, fundraising_months: 12,
-      investment_months: 60, harvesting_months: 48,
+      execution_id: id, name: name, type: "PE", currency: "USD",
+      target_size: 5_000_000, management_fee: 0.02, carried_interest: 0.20,
+      hurdle_rate: 0.08, fund_term_years: 10, investment_period_years: 5,
+      fundraising_months: 12, investment_months: 60, harvesting_months: 48,
       thesis: "Creado via Cerebelum nativo"
     }, ctx)
 
-    {:ok, %{fund_id: fund["id"], fund_name: name, status: "DRAFT"}}
+    fid = fund["id"]
+    verify!(ctx, fid, "DRAFT")
+    {:ok, %{fund_id: fid, fund_name: name, status: "DRAFT"}}
   end
 
-  # ── Step: Activate (DRAFT → FUNDRAISING) ─────────────────────
+  # ── activate (DRAFT → FUNDRAISING) ────────────────────────────
 
   def activate(ctx, {:ok, fund}) do
-    {action, data} = approve_action(ctx)
+    {a, d} = action(ctx)
     cond do
-      action == "edit" ->
+      a == "edit" ->
         up = %{}
-        up = if n = data["name"], do: Map.put(up, :name, n), else: up
+        up = if n = d["name"], do: Map.put(up, :name, n), else: up
         if map_size(up) > 0, do: api(:put, "/funds/#{fund.fund_id}", up, ctx)
-        {:wait_for_approval, [type: :manual], %{step: "activate", fund_id: fund.fund_id, fund_name: fund.fund_name, fund_status: "DRAFT", available_actions: ["edit", "activate"]}}
+        wfa("activate", fund, "DRAFT", ["edit", "activate"])
 
-      action == "activate" ->
-        Logger.info("[FundWorkflow] activate → FUNDRAISING")
+      a == "activate" ->
         api(:post, "/funds/#{fund.fund_id}/activate", nil, ctx)
-        {:ok, Map.merge(fund, %{status: "FUNDRAISING"})}
+        verify!(ctx, fund.fund_id, "FUNDRAISING")
+        {:ok, %{fund | status: "FUNDRAISING"}}
 
-      true ->
-        {:wait_for_approval, [type: :manual], %{step: "activate", fund_id: fund.fund_id, fund_name: fund.fund_name, fund_status: "DRAFT", available_actions: ["edit", "activate"]}}
+      true -> wfa("activate", fund, "DRAFT", ["edit", "activate"])
     end
   end
 
-  # ── Step: First Close (FUNDRAISING → ACTIVE) ──────────────────
+  # ── to_active (FUNDRAISING → ACTIVE) ──────────────────────────
 
-  def first_close(ctx, {:ok, _act}, {:ok, fund}) do
-    {action, data} = approve_action(ctx)
-    if action == "first_close" do
-      Logger.info("[FundWorkflow] first_close → ACTIVE")
-      api(:post, "/funds/#{fund.fund_id}/first-close", %{
-        close_date: data["close_date"], final_amount: int(data["final_amount"]), lp_count: int(data["lp_count"])
-      }, ctx)
-      {:ok, Map.merge(fund, %{status: "ACTIVE"})}
+  def to_active(ctx, {:ok, _act}, {:ok, fund}) do
+    {a, _} = action(ctx)
+    if a == "start_harvesting" do
+      api(:post, "/funds/#{fund.fund_id}/transition", %{status: "ACTIVE"}, ctx)
+      verify!(ctx, fund.fund_id, "ACTIVE")
+      {:ok, %{fund | status: "ACTIVE"}}
     else
-      {:wait_for_approval, [type: :manual], %{step: "first_close", fund_id: fund.fund_id, fund_name: fund.fund_name, fund_status: "FUNDRAISING", available_actions: ["first_close"]}}
+      wfa("to_active", fund, "FUNDRAISING", ["start_harvesting"])
     end
   end
 
-  # ── Step: Start Harvesting (ACTIVE → HARVESTING) ──────────────
+  # ── start_harvesting (ACTIVE → HARVESTING) ────────────────────
 
-  def start_harvesting(ctx, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
-    {action, data} = approve_action(ctx)
-    if action == "start_harvesting" do
-      Logger.info("[FundWorkflow] start_harvesting → HARVESTING")
-      api(:post, "/funds/#{fund.fund_id}/transition", %{status: "HARVESTING", harvest_start: data["harvest_start"]}, ctx)
-      {:ok, Map.merge(fund, %{status: "HARVESTING"})}
+  def start_harvesting(ctx, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
+    {a, d} = action(ctx)
+    if a == "start_harvesting" do
+      api(:post, "/funds/#{fund.fund_id}/transition", %{status: "HARVESTING", harvest_start: d["harvest_start"]}, ctx)
+      verify!(ctx, fund.fund_id, "HARVESTING")
+      {:ok, %{fund | status: "HARVESTING"}}
     else
-      {:wait_for_approval, [type: :manual], %{step: "start_harvesting", fund_id: fund.fund_id, fund_name: fund.fund_name, fund_status: "ACTIVE", available_actions: ["start_harvesting"]}}
+      wfa("start_harvesting", fund, "ACTIVE", ["start_harvesting"])
     end
   end
 
-  # ── Step: Close Fund (HARVESTING → CLOSED) ────────────────────
+  # ── close_fund (HARVESTING → CLOSED) ──────────────────────────
 
-  def close_fund(ctx, {:ok, _harv}, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
-    {action, data} = approve_action(ctx)
-    if action == "close_fund" do
-      aud = data["auditoria"] || ""
-      if aud == "", do: throw({:error, :auditoria_required})
-      Logger.info("[FundWorkflow] close_fund → CLOSED")
+  def close_fund(ctx, {:ok, _sh}, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
+    {a, d} = action(ctx)
+    if a == "close_fund" do
+      aud = d["auditoria"] || ""
+      if aud == "", do: raise "auditoria required"
       api(:post, "/funds/#{fund.fund_id}/close", %{auditoria: aud}, ctx)
-      {:ok, Map.merge(fund, %{status: "CLOSED"})}
+      verify!(ctx, fund.fund_id, "CLOSED")
+      {:ok, %{fund | status: "CLOSED"}}
     else
-      {:wait_for_approval, [type: :manual], %{step: "close_fund", fund_id: fund.fund_id, fund_name: fund.fund_name, fund_status: "HARVESTING", available_actions: ["close_fund"]}}
+      wfa("close_fund", fund, "HARVESTING", ["close_fund"])
     end
   end
 
-  # ── Step: Liquidate (CLOSED → LIQUIDATED) ─────────────────────
+  # ── liquidate (CLOSED → LIQUIDATED) ───────────────────────────
 
-  def liquidate(ctx, {:ok, _close}, {:ok, _harv}, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
-    {action, _} = approve_action(ctx)
-    if action == "liquidate" do
-      Logger.info("[FundWorkflow] liquidate → LIQUIDATED")
+  def liquidate(ctx, {:ok, _cf}, {:ok, _sh}, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
+    {a, _} = action(ctx)
+    if a == "liquidate" do
       api(:post, "/funds/#{fund.fund_id}/transition", %{status: "LIQUIDATED"}, ctx)
-      {:ok, Map.merge(fund, %{status: "LIQUIDATED", liquidated: true})}
+      verify!(ctx, fund.fund_id, "LIQUIDATED")
+      {:ok, %{fund | status: "LIQUIDATED", liquidated: true}}
     else
-      {:wait_for_approval, [type: :manual], %{step: "liquidate", fund_id: fund.fund_id, fund_name: fund.fund_name, fund_status: "CLOSED", available_actions: ["liquidate"]}}
+      wfa("liquidate", fund, "CLOSED", ["liquidate"])
     end
   end
 
-  # ── Step: Notify (FIN) ────────────────────────────────────────
+  # ── notify ────────────────────────────────────────────────────
 
-  def notify(_ctx, {:ok, _liq}, {:ok, _close}, {:ok, _harv}, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
+  def notify(_ctx, {:ok, _lq}, {:ok, _cf}, {:ok, _sh}, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
     Logger.info("[FundWorkflow] notify: #{fund.fund_name} — LIQUIDATED ✅")
     {:ok, Map.merge(fund, %{notified: true})}
+  end
+
+  # ── wait_for_approval helper ──────────────────────────────────
+
+  defp wfa(step, fund, status, actions) do
+    {:wait_for_approval, [type: :manual], %{
+      step: step, fund_id: fund.fund_id, fund_name: fund.fund_name,
+      fund_status: status, available_actions: actions}}
   end
 end
