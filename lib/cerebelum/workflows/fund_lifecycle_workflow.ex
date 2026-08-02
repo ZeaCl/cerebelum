@@ -23,16 +23,16 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   defp api(method, path, body \\ nil, ctx \\ nil) do
     url = @fund_url <> path
-    headers = [{'content-type', 'application/json'}]
+    headers = [{~c"content-type", ~c"application/json"}]
 
     headers =
-      if t = get_auth(ctx), do: [{'authorization', 'Bearer #{t}'} | headers], else: headers
+      if t = get_auth(ctx), do: [{~c"authorization", ~c"Bearer #{t}"} | headers], else: headers
 
     payload = if body, do: Jason.encode!(body), else: ""
 
     case :httpc.request(
            method,
-           {String.to_charlist(url), headers, 'application/json', payload},
+           {String.to_charlist(url), headers, ~c"application/json", payload},
            [],
            []
          ) do
@@ -83,9 +83,10 @@ defmodule Cerebelum.FundLifecycleWorkflow do
           type: fd["type"] || "PE",
           currency: fd["currency"] || "USD",
           target_size: to_int(fd["target_size"] || fd["total_size"] || 5_000_000),
-          management_fee: to_float(fd["management_fee"]) || 0.02,
-          carried_interest: to_float(fd["carried_interest"]) || 0.20,
-          hurdle_rate: to_float(fd["hurdle_rate"]) || 0.08,
+          management_fee_bps: to_int(fd["management_fee_bps"] || fd["management_fee"] || 200),
+          carried_interest_bps:
+            to_int(fd["carried_interest_bps"] || fd["carried_interest"] || 2000),
+          hurdle_rate_bps: to_int(fd["hurdle_rate_bps"] || fd["hurdle_rate"] || 800),
           fund_term_years: to_int(fd["fund_term_years"] || 10),
           investment_period_years: to_int(fd["investment_period_years"] || 5),
           fundraising_months: to_int(fd["fundraising_months"] || 12),
@@ -250,15 +251,10 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   defp to_int(nil), do: nil
   defp to_int(n) when is_integer(n), do: n
   defp to_int(n) when is_float(n), do: trunc(n)
-  defp to_int(n) when is_binary(n), do: String.to_integer(n)
 
-  defp to_float(nil), do: nil
-  defp to_float(n) when is_float(n), do: n
-  defp to_float(n) when is_integer(n), do: n * 1.0
-
-  defp to_float(n) when is_binary(n) do
-    case Float.parse(n) do
-      {f, _} -> f
+  defp to_int(n) when is_binary(n) do
+    case Integer.parse(n) do
+      {i, _} -> i
       :error -> nil
     end
   end
