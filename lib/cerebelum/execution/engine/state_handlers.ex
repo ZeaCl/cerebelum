@@ -241,6 +241,19 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     {:keep_state, data, [{:reply, from, Data.build_status(data, :failed)}]}
   end
 
+  # Reject approvals and any other actions when execution has failed.
+  # Returns a clear error instead of crashing with FunctionClauseError → 500.
+  def failed({:call, from}, {:approve, _approval_response}, data) do
+    error_msg = "Cannot approve: execution #{data.context.execution_id} is in failed state"
+    Logger.warning(error_msg)
+    {:keep_state, data, [{:reply, from, {:error, :execution_failed}}]}
+  end
+
+  def failed({:call, from}, _event, data) do
+    Logger.warning("Rejected event on failed execution #{data.context.execution_id}")
+    {:keep_state, data, [{:reply, from, {:error, :execution_failed}}]}
+  end
+
   ## Private Helpers
 
   defp build_step_inputs(args, timeline, current_step_index, current_result \\ nil) do
