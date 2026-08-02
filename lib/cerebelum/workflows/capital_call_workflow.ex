@@ -41,10 +41,7 @@ defmodule Cerebelum.CapitalCallWorkflow do
   defp to_int(n) when is_integer(n), do: n
   defp to_int(n) when is_float(n), do: trunc(n)
   defp to_int(n) when is_binary(n) do
-    case Integer.parse(n) do
-      {i, _} -> i
-      :error -> nil
-    end
+    case Integer.parse(n) do {i, _} -> i; :error -> nil end
   end
 
   # ── create_capital_call ───────────────────────────────────────
@@ -54,16 +51,14 @@ defmodule Cerebelum.CapitalCallWorkflow do
     fund_id = fd["fund_id"]
     id = ctx.execution_id
 
-    # Recovery mode: capital call already exists
     existing_id = fd["capital_call_id"]
     if existing_id && existing_id != "" do
-      Logger.info("[CapitalCallWorkflow] Recovery mode — capital call exists: #{existing_id}")
+      Logger.info("[CC] Recovery mode — capital call: #{existing_id}")
       {:ok, %{capital_call_id: existing_id, status: "DRAFT"}}
     else
-      Logger.info("[CapitalCallWorkflow] create_capital_call for fund: #{fund_id}")
+      Logger.info("[CC] create for fund: #{fund_id}")
       cc = api(:post, "/capital-calls", %{
-        execution_id: id,
-        fund_id: fund_id,
+        execution_id: id, fund_id: fund_id,
         fund_name: fd["fund_name"] || "Fondo #{fund_id}",
         call_number: fd["call_number"] || "1",
         total_amount: fd["total_amount"] || "0",
@@ -76,7 +71,7 @@ defmodule Cerebelum.CapitalCallWorkflow do
     end
   end
 
-  # ── send_capital_call (DRAFT → SENT) ──────────────────────────
+  # ── send_capital_call (DRAFT → SENT, crea items prorrateados) ─
 
   def send_capital_call(ctx, {:ok, cc}) do
     {a, _} = action(ctx)
@@ -91,7 +86,7 @@ defmodule Cerebelum.CapitalCallWorkflow do
     end
   end
 
-  # ── pay_items ─────────────────────────────────────────────────
+  # ── pay_items (SENT, repetible por cada LP) ───────────────────
 
   def pay_items(ctx, {:ok, _sc}, {:ok, cc}) do
     {a, d} = action(ctx)
@@ -103,7 +98,14 @@ defmodule Cerebelum.CapitalCallWorkflow do
         amount: d["amount"] || "0",
         payment_date: d["payment_date"] || Date.utc_today() |> Date.to_string()
       }, ctx)
-      {:ok, %{cc | status: "PAID"}}
+      # Check if all items are paid — if yes, advance; if no, stay
+      items_resp = api(:get, "/capital-calls/#{cc.capital_call_id}/items", nil, ctx)
+      all_paid = Enum.all?(items_resp["items"] || [], &(&1["status"] == "PAID"))
+      if all_paid do
+        {:ok, %{cc | status: "PAID"}}
+      else
+        wfa("pay_items", cc, "SENT", ["pay"])
+      end
     else
       wfa("pay_items", cc, "SENT", ["pay"])
     end
@@ -112,7 +114,7 @@ defmodule Cerebelum.CapitalCallWorkflow do
   # ── notify ────────────────────────────────────────────────────
 
   def notify(_ctx, {:ok, _pi}, {:ok, _sc}, {:ok, cc}) do
-    Logger.info("[CapitalCallWorkflow] notify: #{cc.capital_call_id} — PAID ✅")
+    Logger.info("[CC] notify: #{cc.capital_call_id} — PAID ✅")
     {:ok, cc}
   end
 
