@@ -459,7 +459,16 @@ defmodule Cerebelum.Execution.StateReconstructor do
       execution_id: event.execution_id
     }
 
+    # Roll back step index: ApprovalReceivedEvent advances it prematurely.
+    # Find the actual failed step in the timeline and set index to it.
+    step_index =
+      case event.failed_step do
+        nil -> data.current_step_index
+        step -> Enum.find_index(data.timeline, &(&1 == atomize(step))) || data.current_step_index
+      end
+
     data
+    |> Map.put(:current_step_index, step_index)
     |> Engine.Data.mark_failed(error_info)
     |> increment_event_version()
   end
