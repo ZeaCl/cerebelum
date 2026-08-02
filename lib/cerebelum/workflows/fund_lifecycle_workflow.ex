@@ -185,12 +185,18 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     {a, d} = action(ctx)
 
     if a == "start_investing" do
-      date = d["investment_start"] || d["date"] || ""
-      body = %{status: "INVESTING"}
-      body = if date != "", do: Map.put(body, :investment_start, date), else: body
-      api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
-      verify!(ctx, fund.fund_id, "INVESTING")
-      {:ok, %{fund | status: "INVESTING"}}
+      fund_data = get_fund(fund.fund_id, ctx)
+      if fund_data["status"] in ["INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
+        Logger.info("[FundWorkflow] start_investing skipped — already #{fund_data["status"]}")
+        {:ok, %{fund | status: fund_data["status"]}}
+      else
+        date = d["investment_start"] || d["date"] || ""
+        body = %{status: "INVESTING"}
+        body = if date != "", do: Map.put(body, :investment_start, date), else: body
+        api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
+        verify!(ctx, fund.fund_id, "INVESTING")
+        {:ok, %{fund | status: "INVESTING"}}
+      end
     else
       wfa("start_investing", fund, "FUNDRAISING", ["start_investing"])
     end
@@ -202,12 +208,18 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     {a, d} = action(ctx)
 
     if a == "start_harvesting" do
-      date = d["harvest_start"] || d["date"] || ""
-      body = %{status: "HARVESTING"}
-      body = if date != "", do: Map.put(body, :harvest_start, date), else: body
-      api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
-      verify!(ctx, fund.fund_id, "HARVESTING")
-      {:ok, %{fund | status: "HARVESTING"}}
+      fund_data = get_fund(fund.fund_id, ctx)
+      if fund_data["status"] in ["HARVESTING", "CLOSED", "LIQUIDATED"] do
+        Logger.info("[FundWorkflow] start_harvesting skipped — already #{fund_data["status"]}")
+        {:ok, %{fund | status: fund_data["status"]}}
+      else
+        date = d["harvest_start"] || d["date"] || ""
+        body = %{status: "HARVESTING"}
+        body = if date != "", do: Map.put(body, :harvest_start, date), else: body
+        api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
+        verify!(ctx, fund.fund_id, "HARVESTING")
+        {:ok, %{fund | status: "HARVESTING"}}
+      end
     else
       wfa("start_harvesting", fund, "INVESTING", ["start_harvesting"])
     end
@@ -219,11 +231,17 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     {a, d} = action(ctx)
 
     if a == "close_fund" do
-      aud = d["auditoria"] || ""
-      if aud == "", do: raise("auditoria required")
-      api(:post, "/funds/#{fund.fund_id}/close", %{auditoria: aud}, ctx)
-      verify!(ctx, fund.fund_id, "CLOSED")
-      {:ok, %{fund | status: "CLOSED"}}
+      fund_data = get_fund(fund.fund_id, ctx)
+      if fund_data["status"] in ["CLOSED", "LIQUIDATED"] do
+        Logger.info("[FundWorkflow] close_fund skipped — already #{fund_data["status"]}")
+        {:ok, %{fund | status: fund_data["status"]}}
+      else
+        aud = d["auditoria"] || ""
+        if aud == "", do: raise("auditoria required")
+        api(:post, "/funds/#{fund.fund_id}/close", %{auditoria: aud}, ctx)
+        verify!(ctx, fund.fund_id, "CLOSED")
+        {:ok, %{fund | status: "CLOSED"}}
+      end
     else
       wfa("close_fund", fund, "HARVESTING", ["close_fund"])
     end
@@ -235,9 +253,15 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     {a, _} = action(ctx)
 
     if a == "liquidate" do
-      api(:post, "/funds/#{fund.fund_id}/transition", %{status: "LIQUIDATED"}, ctx)
-      verify!(ctx, fund.fund_id, "LIQUIDATED")
-      {:ok, %{fund | status: "LIQUIDATED", liquidated: true}}
+      fund_data = get_fund(fund.fund_id, ctx)
+      if fund_data["status"] == "LIQUIDATED" do
+        Logger.info("[FundWorkflow] liquidate skipped — already LIQUIDATED")
+        {:ok, %{fund | status: "LIQUIDATED", liquidated: true}}
+      else
+        api(:post, "/funds/#{fund.fund_id}/transition", %{status: "LIQUIDATED"}, ctx)
+        verify!(ctx, fund.fund_id, "LIQUIDATED")
+        {:ok, %{fund | status: "LIQUIDATED", liquidated: true}}
+      end
     else
       wfa("liquidate", fund, "CLOSED", ["liquidate"])
     end
