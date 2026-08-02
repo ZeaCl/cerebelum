@@ -236,10 +236,12 @@ defmodule Cerebelum.Execution.ErrorInfo do
   """
   @spec format(t()) :: String.t()
   def format(%__MODULE__{} = error) do
-    case error.kind do
+    kind = normalize_kind(error.kind)
+
+    case kind do
       :exception ->
-        exception_message = Exception.message(error.reason)
-        exception_type = format_module_name(error.reason.__struct__)
+        exception_message = exception_message(error.reason)
+        exception_type = format_module_name(error.reason)
         "Exception in step :#{error.step_name} - #{exception_type}: #{exception_message}"
 
       :exit ->
@@ -304,9 +306,28 @@ defmodule Cerebelum.Execution.ErrorInfo do
 
   defp serialize_reason(reason), do: reason
 
+  # Handle string kind from JSON deserialization
+  defp normalize_kind(kind) when is_atom(kind), do: kind
+  defp normalize_kind(kind) when is_binary(kind), do: String.to_existing_atom(kind)
+
+  # Extract message from RuntimeError (struct or deserialized map)
+  defp exception_message(%RuntimeError{message: msg}), do: msg
+  defp exception_message(%{"__exception__" => "Elixir.RuntimeError", "message" => msg}), do: msg
+  defp exception_message(reason), do: inspect(reason)
+
+  defp format_module_name(%{__struct__: mod}) when is_atom(mod) do
+    mod |> Atom.to_string() |> String.replace_prefix("Elixir.", "")
+  end
+
+  defp format_module_name(%{"__exception__" => name}) do
+    String.replace_prefix(name, "Elixir.", "")
+  end
+
   defp format_module_name(module) when is_atom(module) do
     module
     |> Atom.to_string()
     |> String.replace_prefix("Elixir.", "")
   end
+
+  defp format_module_name(_), do: "Unknown"
 end
