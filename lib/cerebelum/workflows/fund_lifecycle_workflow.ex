@@ -40,7 +40,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     payload = if body, do: Jason.encode!(body), else: ""
 
     case :httpc.request(
-           String.to_atom(method),
+           method,
            {String.to_charlist(url), headers, 'application/json', payload},
            [],
            []
