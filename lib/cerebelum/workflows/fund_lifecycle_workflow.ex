@@ -8,8 +8,14 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   workflow do
     timeline do
-      create_fund() |> activate() |> to_active() |>
-        start_harvesting() |> close_fund() |> liquidate() |> notify()
+      create_fund()
+      |> activate()
+      |> first_close()
+      |> start_investing()
+      |> start_harvesting()
+      |> close_fund()
+      |> liquidate()
+      |> notify()
     end
   end
 
@@ -18,9 +24,18 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   defp api(method, path, body \\ nil, ctx \\ nil) do
     url = @fund_url <> path
     headers = [{'content-type', 'application/json'}]
-    headers = if t = get_auth(ctx), do: [{'authorization', 'Bearer #{t}'} | headers], else: headers
+
+    headers =
+      if t = get_auth(ctx), do: [{'authorization', 'Bearer #{t}'} | headers], else: headers
+
     payload = if body, do: Jason.encode!(body), else: ""
-    case :httpc.request(method, {String.to_charlist(url), headers, 'application/json', payload}, [], []) do
+
+    case :httpc.request(
+           method,
+           {String.to_charlist(url), headers, 'application/json', payload},
+           [],
+           []
+         ) do
       {:ok, {{_, s, _}, _, b}} when s in 200..299 -> Jason.decode!(b)
       {:ok, {{_, s, _}, _, b}} -> raise "API #{s}: #{b}"
       {:error, r} -> raise "API error: #{inspect(r)}"
@@ -32,10 +47,6 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   defp get_auth(%{metadata: %{auth_token: t}}) when is_binary(t), do: t
   defp get_auth(_), do: nil
 
-  defp int(n) when is_integer(n), do: n
-  defp int(s) when is_binary(s), do: String.to_integer(s)
-  defp int(_), do: 0
-
   defp action(ctx) do
     case ctx.inputs |> Map.get("approve_response", ctx.inputs) do
       %{"action" => a} = d -> {a, d}
@@ -46,9 +57,11 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   defp verify!(ctx, id, expected) do
     fund = get_fund(id, ctx)
     actual = fund["status"] || ""
+
     if actual != expected do
       raise "Status mismatch: expected #{expected}, got #{actual}"
     end
+
     fund
   end
 
@@ -60,13 +73,30 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     id = ctx.execution_id
     Logger.info("[FundWorkflow] create_fund: #{name}")
 
-    fund = api(:post, "/funds/draft", %{
-      execution_id: id, name: name, type: "PE", currency: "USD",
-      target_size: 5_000_000, management_fee: 0.02, carried_interest: 0.20,
-      hurdle_rate: 0.08, fund_term_years: 10, investment_period_years: 5,
-      fundraising_months: 12, investment_months: 60, harvesting_months: 48,
-      thesis: "Creado via Cerebelum nativo"
-    }, ctx)
+    fund =
+      api(
+        :post,
+        "/funds/draft",
+        %{
+          execution_id: id,
+          name: name,
+          type: fd["type"] || "PE",
+          currency: fd["currency"] || "USD",
+          target_size: to_int(fd["target_size"] || fd["total_size"] || 5_000_000),
+          management_fee: to_float(fd["management_fee"]) || 0.02,
+          carried_interest: to_float(fd["carried_interest"]) || 0.20,
+          hurdle_rate: to_float(fd["hurdle_rate"]) || 0.08,
+          fund_term_years: to_int(fd["fund_term_years"] || 10),
+          investment_period_years: to_int(fd["investment_period_years"] || 5),
+          fundraising_months: to_int(fd["fundraising_months"] || 12),
+          investment_months: to_int(fd["investment_months"] || 60),
+          harvesting_months: to_int(fd["harvesting_months"] || 48),
+          thesis: fd["thesis"] || "Creado via Cerebelum nativo",
+          vintage_year: to_int(fd["vintage_year"]),
+          hard_cap: to_int(fd["hard_cap"])
+        },
+        ctx
+      )
 
     fid = fund["id"]
     verify!(ctx, fid, "DRAFT")
@@ -77,6 +107,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   def activate(ctx, {:ok, fund}) do
     {a, d} = action(ctx)
+
     cond do
       a == "edit" ->
         up = %{}
@@ -89,43 +120,82 @@ defmodule Cerebelum.FundLifecycleWorkflow do
         verify!(ctx, fund.fund_id, "FUNDRAISING")
         {:ok, %{fund | status: "FUNDRAISING"}}
 
-      true -> wfa("activate", fund, "DRAFT", ["edit", "activate"])
+      true ->
+        wfa("activate", fund, "DRAFT", ["edit", "activate"])
     end
   end
 
-  # ── to_active (FUNDRAISING → ACTIVE) ──────────────────────────
+  # ── first_close (FUNDRAISING) ─────────────────────────────────
 
-  def to_active(ctx, {:ok, _act}, {:ok, fund}) do
-    {a, _} = action(ctx)
-    if a == "start_harvesting" do
-      api(:post, "/funds/#{fund.fund_id}/transition", %{status: "ACTIVE"}, ctx)
-      verify!(ctx, fund.fund_id, "ACTIVE")
-      {:ok, %{fund | status: "ACTIVE"}}
-    else
-      wfa("to_active", fund, "FUNDRAISING", ["start_harvesting"])
-    end
-  end
-
-  # ── start_harvesting (ACTIVE → HARVESTING) ────────────────────
-
-  def start_harvesting(ctx, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
+  def first_close(ctx, {:ok, _act}, {:ok, fund}) do
     {a, d} = action(ctx)
+
+    cond do
+      a == "first_close" ->
+        date = d["close_date"] || d["date"] || ""
+        if date == "", do: raise("close_date required for first_close")
+
+        api(
+          :post,
+          "/funds/#{fund.fund_id}/first-close",
+          %{
+            close_date: date,
+            final_amount: to_int(d["final_amount"] || d["amount"] || 0),
+            lp_count: to_int(d["lp_count"] || d["lps"] || 0)
+          },
+          ctx
+        )
+
+        verify!(ctx, fund.fund_id, "FUNDRAISING")
+        {:ok, fund}
+
+      true ->
+        wfa("first_close", fund, "FUNDRAISING", ["first_close"])
+    end
+  end
+
+  # ── start_investing (FUNDRAISING → INVESTING) ─────────────────
+
+  def start_investing(ctx, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
+    {a, d} = action(ctx)
+
+    if a == "start_investing" do
+      date = d["investment_start"] || d["date"] || ""
+      body = %{status: "INVESTING"}
+      body = if date != "", do: Map.put(body, :investment_start, date), else: body
+      api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
+      verify!(ctx, fund.fund_id, "INVESTING")
+      {:ok, %{fund | status: "INVESTING"}}
+    else
+      wfa("start_investing", fund, "FUNDRAISING", ["start_investing"])
+    end
+  end
+
+  # ── start_harvesting (INVESTING → HARVESTING) ─────────────────
+
+  def start_harvesting(ctx, {:ok, _si}, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
+    {a, d} = action(ctx)
+
     if a == "start_harvesting" do
-      api(:post, "/funds/#{fund.fund_id}/transition", %{status: "HARVESTING", harvest_start: d["harvest_start"]}, ctx)
+      date = d["harvest_start"] || d["date"] || ""
+      body = %{status: "HARVESTING"}
+      body = if date != "", do: Map.put(body, :harvest_start, date), else: body
+      api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
       verify!(ctx, fund.fund_id, "HARVESTING")
       {:ok, %{fund | status: "HARVESTING"}}
     else
-      wfa("start_harvesting", fund, "ACTIVE", ["start_harvesting"])
+      wfa("start_harvesting", fund, "INVESTING", ["start_harvesting"])
     end
   end
 
   # ── close_fund (HARVESTING → CLOSED) ──────────────────────────
 
-  def close_fund(ctx, {:ok, _sh}, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
+  def close_fund(ctx, {:ok, _sh}, {:ok, _si}, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
     {a, d} = action(ctx)
+
     if a == "close_fund" do
       aud = d["auditoria"] || ""
-      if aud == "", do: raise "auditoria required"
+      if aud == "", do: raise("auditoria required")
       api(:post, "/funds/#{fund.fund_id}/close", %{auditoria: aud}, ctx)
       verify!(ctx, fund.fund_id, "CLOSED")
       {:ok, %{fund | status: "CLOSED"}}
@@ -136,8 +206,9 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   # ── liquidate (CLOSED → LIQUIDATED) ───────────────────────────
 
-  def liquidate(ctx, {:ok, _cf}, {:ok, _sh}, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
+  def liquidate(ctx, {:ok, _cf}, {:ok, _sh}, {:ok, _si}, {:ok, _fc}, {:ok, _act}, {:ok, fund}) do
     {a, _} = action(ctx)
+
     if a == "liquidate" do
       api(:post, "/funds/#{fund.fund_id}/transition", %{status: "LIQUIDATED"}, ctx)
       verify!(ctx, fund.fund_id, "LIQUIDATED")
@@ -149,16 +220,46 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   # ── notify ────────────────────────────────────────────────────
 
-  def notify(_ctx, {:ok, _lq}, {:ok, _cf}, {:ok, _sh}, {:ok, _ta}, {:ok, _act}, {:ok, fund}) do
+  def notify(
+        _ctx,
+        {:ok, _lq},
+        {:ok, _cf},
+        {:ok, _sh},
+        {:ok, _si},
+        {:ok, _fc},
+        {:ok, _act},
+        {:ok, fund}
+      ) do
     Logger.info("[FundWorkflow] notify: #{fund.fund_name} — LIQUIDATED ✅")
     {:ok, Map.merge(fund, %{notified: true})}
   end
 
-  # ── wait_for_approval helper ──────────────────────────────────
+  # ── helpers ───────────────────────────────────────────────────
 
   defp wfa(step, fund, status, actions) do
-    {:wait_for_approval, [type: :manual], %{
-      step: step, fund_id: fund.fund_id, fund_name: fund.fund_name,
-      fund_status: status, available_actions: actions}}
+    {:wait_for_approval, [type: :manual],
+     %{
+       step: step,
+       fund_id: fund.fund_id,
+       fund_name: fund.fund_name,
+       fund_status: status,
+       available_actions: actions
+     }}
+  end
+
+  defp to_int(nil), do: nil
+  defp to_int(n) when is_integer(n), do: n
+  defp to_int(n) when is_float(n), do: trunc(n)
+  defp to_int(n) when is_binary(n), do: String.to_integer(n)
+
+  defp to_float(nil), do: nil
+  defp to_float(n) when is_float(n), do: n
+  defp to_float(n) when is_integer(n), do: n * 1.0
+
+  defp to_float(n) when is_binary(n) do
+    case Float.parse(n) do
+      {f, _} -> f
+      :error -> nil
+    end
   end
 end

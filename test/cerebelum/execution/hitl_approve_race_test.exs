@@ -173,10 +173,11 @@ defmodule Cerebelum.Execution.HITLApproveRaceTest do
       assert status.approval_step_name == :step_a
 
       # ─── Approve step_a ───
-      {:ok, :approved} = Cerebelum.Execution.Approval.approve(
-        pid,
-        %{"action" => "process_step_a", "fund_id" => "fund-123"}
-      )
+      {:ok, :approved} =
+        Cerebelum.Execution.Approval.approve(
+          pid,
+          %{"action" => "process_step_a", "fund_id" => "fund-123"}
+        )
 
       # Engine re-executes step_a → queues task → blocks
       assert :ok = wait_for_engine_blocked(execution_id)
@@ -242,7 +243,8 @@ defmodule Cerebelum.Execution.HITLApproveRaceTest do
 
       # ─── NOW the premature approve fires! ───
       # The Task.async above should complete (either OK or error)
-      premature_approve_result = Task.yield(premature_approve_caller, 2000) || Task.shutdown(premature_approve_caller)
+      premature_approve_result =
+        Task.yield(premature_approve_caller, 2000) || Task.shutdown(premature_approve_caller)
 
       # After the premature approve is processed, check the engine state
       Process.sleep(100)
