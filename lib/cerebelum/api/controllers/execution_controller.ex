@@ -92,12 +92,16 @@ defmodule Cerebelum.API.ExecutionController do
     cond do
       # Compiled Elixir workflow
       workflow_module != nil ->
-        case Cerebelum.execute_workflow(workflow_module, inputs) do
-          {:ok, execution} ->
-            if org_id, do: put_execution_org(execution.id, org_id)
+        # Pass auth_token in metadata so workflow steps can call external APIs
+        opts = if auth_token, do: [metadata: %{auth_token: auth_token}], else: []
+
+        case Cerebelum.Execution.Supervisor.start_execution(workflow_module, inputs, opts) do
+          {:ok, pid} ->
+            status = Cerebelum.Execution.Engine.get_status(pid)
+            if org_id, do: put_execution_org(status.execution_id, org_id)
 
             json(conn, %{
-              execution_id: execution.id,
+              execution_id: status.execution_id,
               status: "started",
               workflow: workflow_name
             })
@@ -149,11 +153,25 @@ defmodule Cerebelum.API.ExecutionController do
   def show(conn, %{"id" => execution_id}) do
     case Cerebelum.get_execution_status(execution_id) do
       {:ok, status} ->
+        # Fallback: if current_step is nil or "None", extract from event stream
+        current_step_raw = status.current_step
+
+        current_step =
+          if is_nil(current_step_raw) or current_step_raw == "None",
+            do: fallback_current_step(execution_id),
+            else: current_step_raw
+
+        current_step_data =
+          if is_nil(current_step_raw) or current_step_raw == "None",
+            do: fallback_current_step_data(execution_id),
+            else: nil
+
         json(conn, %{
           execution_id: execution_id,
           state: status.state,
           progress: status.timeline_progress,
-          current_step: status.current_step,
+          current_step: current_step,
+          current_step_data: current_step_data,
           results: status.results,
           error: status.error_message
         })
@@ -162,9 +180,14 @@ defmodule Cerebelum.API.ExecutionController do
         # Check if it's a completed/failed execution in event store
         case StateReconstructor.reconstruct(execution_id) do
           {:ok, state} ->
+            current_step = fallback_current_step(execution_id)
+            current_step_data = fallback_current_step_data(execution_id)
+
             json(conn, %{
               execution_id: execution_id,
               state: state[:status] || :unknown,
+              current_step: current_step,
+              current_step_data: current_step_data,
               results: Cerebelum.Execution.Engine.Data.json_safe_results(state[:results] || %{}),
               error: state[:error]
             })
@@ -343,14 +366,90 @@ defmodule Cerebelum.API.ExecutionController do
         true -> "running"
       end
 
+    # Extract current step from the last StepStarted/StepCompleted event
+    current_step = extract_current_step(events)
+    current_step_data = extract_current_step_data(events)
+
     %{
       execution_id: exec_id,
+      id: exec_id,
       status: status,
+      current_step: current_step,
+      current_step_data: current_step_data,
       workflow:
         started &&
           (get_in(started.event_data, ["blueprint_name"]) ||
              get_in(started.event_data, ["workflow_module"])),
       events_count: length(events)
     }
+  end
+
+  defp extract_current_step(events) do
+    events
+    |> Enum.reverse()
+    |> Enum.find_value(fn e ->
+      case e.event_type do
+        "StepStartedEvent" -> get_in(e.event_data, ["step_name"])
+        "StepExecutedEvent" -> get_in(e.event_data, ["step_name"])
+        "StepCompletedEvent" -> get_in(e.event_data, ["step_name"])
+        "StepFailedEvent" -> get_in(e.event_data, ["step_name"])
+        "ApprovalRequestedEvent" -> get_in(e.event_data, ["step_name"])
+        _ -> nil
+      end
+    end)
+  end
+
+  defp extract_current_step_data(events) do
+    events
+    |> Enum.reverse()
+    |> Enum.find_value(fn e ->
+      case e.event_type do
+        "StepExecutedEvent" ->
+          case get_in(e.event_data, ["result"]) do
+            result when is_map(result) -> result
+            _ -> nil
+          end
+
+        "StepCompletedEvent" ->
+          case get_in(e.event_data, ["result"]) do
+            result when is_map(result) -> result
+            _ -> nil
+          end
+
+        "ApprovalRequestedEvent" ->
+          case get_in(e.event_data, ["approval_data"]) do
+            %{"data" => inner} when is_map(inner) ->
+              # Flatten: merge nested "data" into top level so fund_id is at
+              # current_step_data.fund_id (what funds.html expects)
+              approval = get_in(e.event_data, ["approval_data"]) || %{}
+              Map.merge(inner, Map.drop(approval, ["data"]))
+
+            data when is_map(data) ->
+              data
+
+            _ ->
+              nil
+          end
+
+        _ ->
+          nil
+      end
+    end)
+  end
+
+  # ── Fallback helpers for show endpoint ─────────────────────
+
+  defp fallback_current_step(execution_id) do
+    case EventStore.get_events(execution_id) do
+      {:ok, events} -> extract_current_step(events)
+      _ -> nil
+    end
+  end
+
+  defp fallback_current_step_data(execution_id) do
+    case EventStore.get_events(execution_id) do
+      {:ok, events} -> extract_current_step_data(events)
+      _ -> nil
+    end
   end
 end
