@@ -69,7 +69,7 @@ defmodule Cerebelum.CapitalCallWorkflow do
         total_amount: fd["total_amount"] || "0",
         currency: fd["currency"] || "USD",
         issue_date: fd["issue_date"] || Date.utc_today() |> Date.to_string(),
-        due_date: fd["due_date"] || "",
+        due_date: fd["due_date"] || Date.utc_today() |> Date.add(30) |> Date.to_string(),
         purpose: fd["purpose"] || "Capital call via Cerebelum"
       }, ctx)
       {:ok, %{capital_call_id: cc["id"], status: "DRAFT"}}
