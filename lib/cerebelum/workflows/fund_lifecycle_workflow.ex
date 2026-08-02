@@ -58,7 +58,9 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     end
   end
 
-  defp get_auth_token(%{metadata: %{auth_token: token}}) when is_binary(token), do: token
+  defp get_auth_token(%{metadata: meta}) when is_map(meta) do
+    Map.get(meta, :auth_token) || Map.get(meta, "auth_token")
+  end
   defp get_auth_token(_), do: nil
 
   # ── Helpers ──────────────────────────────────────────────────────────

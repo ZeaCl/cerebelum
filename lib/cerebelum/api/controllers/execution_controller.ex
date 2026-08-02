@@ -92,7 +92,9 @@ defmodule Cerebelum.API.ExecutionController do
     cond do
       # Compiled Elixir workflow
       workflow_module != nil ->
-        case Cerebelum.execute_workflow(workflow_module, inputs) do
+        # Pass auth_token in metadata so workflow steps can call external APIs
+        opts = if auth_token, do: [metadata: %{auth_token: auth_token}], else: []
+        case Cerebelum.execute_workflow(workflow_module, inputs, opts) do
           {:ok, execution} ->
             if org_id, do: put_execution_org(execution.id, org_id)
 
