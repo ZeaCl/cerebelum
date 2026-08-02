@@ -30,12 +30,14 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     payload = if body, do: Jason.encode!(body), else: ""
 
-    case :httpc.request(
-           method,
-           {String.to_charlist(url), headers, ~c"application/json", payload},
-           [],
-           []
-         ) do
+    req =
+      if method in [:get, :head] do
+        {String.to_charlist(url), headers}
+      else
+        {String.to_charlist(url), headers, ~c"application/json", payload}
+      end
+
+    case :httpc.request(method, req, [], []) do
       {:ok, {{_, s, _}, _, b}} when s in 200..299 -> Jason.decode!(b)
       {:ok, {{_, s, _}, _, b}} -> raise "API #{s}: #{b}"
       {:error, r} -> raise "API error: #{inspect(r)}"
