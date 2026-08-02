@@ -164,8 +164,8 @@ defmodule Cerebelum.FundLifecycleWorkflow do
           ctx
         )
 
-        verify!(ctx, fund.fund_id, "FUNDRAISING")
-        {:ok, fund}
+        verify!(ctx, fund.fund_id, "ACTIVE")
+        {:ok, %{fund | status: "ACTIVE"}}
 
       true ->
         wfa("first_close", fund, "FUNDRAISING", ["first_close"])
