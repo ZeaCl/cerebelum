@@ -75,10 +75,17 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     id = ctx.execution_id
     Logger.info("[FundWorkflow] create_fund: #{name}")
 
-    fund =
-      api(
-        :post,
-        "/funds/draft",
+    # Recovery mode: fund already exists, skip creation
+    existing_fund_id = fd["fund_id"]
+    if existing_fund_id && existing_fund_id != "" do
+      Logger.info("[FundWorkflow] Recovery mode — fund already exists: #{existing_fund_id}")
+      fund = get_fund(existing_fund_id, ctx)
+      {:ok, %{fund_id: existing_fund_id, fund_name: fund["name"] || name, status: fund["status"] || "DRAFT"}}
+    else
+      fund =
+        api(
+          :post,
+          "/funds/draft",
         %{
           execution_id: id,
           name: name,
@@ -101,9 +108,10 @@ defmodule Cerebelum.FundLifecycleWorkflow do
         ctx
       )
 
-    fid = fund["id"]
-    verify!(ctx, fid, "DRAFT")
-    {:ok, %{fund_id: fid, fund_name: name, status: "DRAFT"}}
+      fid = fund["id"]
+      verify!(ctx, fid, "DRAFT")
+      {:ok, %{fund_id: fid, fund_name: name, status: "DRAFT"}}
+    end
   end
 
   # ── activate (DRAFT → FUNDRAISING) ────────────────────────────
