@@ -94,16 +94,15 @@ defmodule Cerebelum.API.ExecutionController do
       workflow_module != nil ->
         # Pass auth_token in metadata so workflow steps can call external APIs
         opts = if auth_token, do: [metadata: %{auth_token: auth_token}], else: []
-        case Cerebelum.execute_workflow(workflow_module, inputs, opts) do
-          {:ok, execution} ->
-            if org_id, do: put_execution_org(execution.id, org_id)
-
+        case Cerebelum.Execution.Supervisor.start_execution(workflow_module, inputs, opts) do
+          {:ok, pid} ->
+            status = Cerebelum.Execution.Engine.get_status(pid)
+            if org_id, do: put_execution_org(status.execution_id, org_id)
             json(conn, %{
-              execution_id: execution.id,
+              execution_id: status.execution_id,
               status: "started",
               workflow: workflow_name
             })
-
           {:error, reason} ->
             conn
             |> put_status(:internal_server_error)
