@@ -28,7 +28,7 @@ defmodule Cerebelum.MixProject do
 
       # Documentation
       name: "Cerebelum Core",
-      source_url: "https://github.com/cerebelum-io/cerebelum-core",
+      source_url: "https://github.com/zeaCl/cerebelum",
       docs: [
         main: "Cerebelum",
         extras: [
