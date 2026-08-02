@@ -153,19 +153,26 @@ defmodule Cerebelum.FundLifecycleWorkflow do
         date = d["close_date"] || d["date"] || ""
         if date == "", do: raise("close_date required for first_close")
 
-        api(
-          :post,
-          "/funds/#{fund.fund_id}/first-close",
-          %{
-            close_date: date,
-            final_amount: to_int(d["final_amount"] || d["amount"] || 0),
-            lp_count: to_int(d["lp_count"] || d["lps"] || 0)
-          },
-          ctx
-        )
+        # Idempotent: if already ACTIVE or beyond, skip
+        fund_data = get_fund(fund.fund_id, ctx)
+        if fund_data["status"] in ["ACTIVE", "INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
+          Logger.info("[FundWorkflow] first_close skipped — already #{fund_data["status"]}")
+          {:ok, %{fund | status: fund_data["status"]}}
+        else
+          api(
+            :post,
+            "/funds/#{fund.fund_id}/first-close",
+            %{
+              close_date: date,
+              final_amount: to_int(d["final_amount"] || d["amount"] || 0),
+              lp_count: to_int(d["lp_count"] || d["lps"] || 0)
+            },
+            ctx
+          )
 
-        verify!(ctx, fund.fund_id, "ACTIVE")
-        {:ok, %{fund | status: "ACTIVE"}}
+          verify!(ctx, fund.fund_id, "ACTIVE")
+          {:ok, %{fund | status: "ACTIVE"}}
+        end
 
       true ->
         wfa("first_close", fund, "FUNDRAISING", ["first_close"])
