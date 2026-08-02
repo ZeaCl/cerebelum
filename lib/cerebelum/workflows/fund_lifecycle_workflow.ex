@@ -21,7 +21,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   # ── HTTP ─────────────────────────────────────────────────────
 
-  defp api(method, path, body \\ nil, ctx \\ nil) do
+  defp api(method, path, body, ctx) do
     url = @fund_url <> path
     headers = [{~c"content-type", ~c"application/json"}]
 
