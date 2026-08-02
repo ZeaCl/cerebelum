@@ -1,0 +1,70 @@
+# ============================================================================
+# Buildspec — Servicios Elixir estándar
+# ============================================================================
+# Servicios: thalamus, cerebelum, cranium, soma, fundmanagement
+#
+# Patrón: hexpm/elixir → alpine multi-stage
+# Build-args: ninguno
+# Registry: zea/<SERVICE>
+# ============================================================================
+#
+# Instrucciones de uso:
+#   Reemplazar cerebelum con el nombre del servicio
+#   Colocar en la raíz del repo como buildspec.yml
+#
+# ============================================================================
+
+version: 0.2
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: "sa-east-1"
+    ECR_REPO: "zea/cerebelum"
+    IMAGE_TAG: "latest"
+
+phases:
+  pre_build:
+    commands:
+      - echo "🔐 Logging into Amazon ECR..."
+      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - |
+        # ── Tagging: latest + commit SHA ──
+        COMMIT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | head -c 7)
+        REPO_URI="$ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO"
+        echo "📦 Repo: $REPO_URI"
+        echo "🏷️  Tags: latest, commit-$COMMIT_SHA"
+
+  build:
+    commands:
+      - echo "🐳 Building Docker image — linux/amd64..."
+      - |
+        docker build \
+          --platform linux/amd64 \
+          --target runtime \
+          -t localbuild:latest \
+          -t localbuild:commit-$COMMIT_SHA \
+          .
+
+  post_build:
+    commands:
+      - echo "📤 Pushing to ECR..."
+      - docker tag localbuild:latest $REPO_URI:latest
+      - docker tag localbuild:commit-$COMMIT_SHA $REPO_URI:commit-$COMMIT_SHA
+      - docker push $REPO_URI:latest
+      - docker push $REPO_URI:commit-$COMMIT_SHA
+      - |
+        echo ""
+        echo "✅ Build completado"
+        echo "   📦 $REPO_URI:latest"
+        echo "   📦 $REPO_URI:commit-$COMMIT_SHA"
+
+cache:
+  paths:
+    - '/root/.cache/docker'
+
+# ── Opcional: smoke test (copiar en cerebelum) ──
+# artifacts:
+#   files:
+#     - '**/*'
+#   name: $CODEBUILD_BUILD_NUMBER
