@@ -11,6 +11,8 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   use Cerebelum.Workflow
   require Logger
 
+  @fund_url Application.compile_env(:cerebelum, :fund_service_url, "http://fm_funds:4082")
+
   workflow do
     timeline do
       create_fund()
@@ -22,6 +24,42 @@ defmodule Cerebelum.FundLifecycleWorkflow do
       |> notify()
     end
   end
+
+  # ── HTTP Helper ──────────────────────────────────────────────────────
+
+  defp api(method, path, body \\ nil, ctx \\ nil) do
+    url = @fund_url <> path
+    headers = [{'content-type', 'application/json'}]
+
+    headers =
+      case get_auth_token(ctx) do
+        nil -> headers
+        token -> [{'authorization', 'Bearer #{token}'} | headers]
+      end
+
+    payload = if body, do: Jason.encode!(body), else: ""
+
+    case :httpc.request(
+           String.to_atom(method),
+           {String.to_charlist(url), headers, 'application/json', payload},
+           [],
+           []
+         ) do
+      {:ok, {{_, status, _}, _, body}} when status in 200..299 ->
+        Jason.decode!(body)
+
+      {:ok, {{_, status, _}, _, body}} ->
+        Logger.error("[FundWorkflow] API #{method} #{path} → #{status}: #{body}")
+        raise "API error #{status}: #{body}"
+
+      {:error, reason} ->
+        Logger.error("[FundWorkflow] API #{method} #{path} → #{inspect(reason)}")
+        raise "API error: #{inspect(reason)}"
+    end
+  end
+
+  defp get_auth_token(%{metadata: %{auth_token: token}}) when is_binary(token), do: token
+  defp get_auth_token(_), do: nil
 
   # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -38,12 +76,36 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
   def create_fund(%{inputs: inputs} = ctx) do
     fund_data = inputs["fund_data"] || %{}
-    fund_id = Ecto.UUID.generate()
-    Logger.info("[FundWorkflow] create_fund: #{fund_data["name"]} → #{fund_id}")
-    {:ok, %{fund_id: fund_id, fund_name: fund_data["name"] || "Fondo", status: "DRAFT"}}
+    name = fund_data["name"] || "Fondo"
+    exec_id = ctx.execution_id
+
+    Logger.info("[FundWorkflow] create_fund: #{name} (exec=#{exec_id})")
+
+    body = %{
+      execution_id: exec_id,
+      name: name,
+      type: fund_data["type"] || "PE",
+      currency: fund_data["currency"] || "USD",
+      target_size: fund_data["size"] || 5_000_000,
+      management_fee: 0.02,
+      carried_interest: 0.20,
+      hurdle_rate: 0.08,
+      fund_term_years: 10,
+      investment_period_years: 5,
+      fundraising_months: 12,
+      investment_months: 60,
+      harvesting_months: 48,
+      thesis: "Creado via Cerebelum nativo"
+    }
+
+    fund = api(:post, "/funds/draft", body, ctx)
+    fund_id = fund["id"]
+    Logger.info("[FundWorkflow] create_fund: ✅ #{name} → #{fund_id}")
+
+    {:ok, %{fund_id: fund_id, fund_name: name, status: "DRAFT"}}
   end
 
-  # ── Step: Activate (DRAFT → FUNDRAISING, con edit loop) ──────────────
+  # ── Step: Activate (DRAFT → FUNDRAISING) ────────────────────────────
 
   def activate(ctx, {:ok, fund}) do
     {action, data} = approve_action(ctx)
@@ -51,7 +113,14 @@ defmodule Cerebelum.FundLifecycleWorkflow do
     cond do
       action == "edit" ->
         Logger.info("[FundWorkflow] activate: edit #{fund.fund_name}")
-        # TODO: PUT /funds/{id} with edit data
+        update = %{}
+        update = if name = data["name"], do: Map.put(update, :name, name), else: update
+
+        update =
+          if size = data["total_size"], do: Map.put(update, :total_size, size), else: update
+
+        if map_size(update) > 0, do: api(:put, "/funds/#{fund.fund_id}", update, ctx)
+
         {:wait_for_approval, [type: :manual],
          %{
            step: "activate",
@@ -63,11 +132,10 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
       action == "activate" ->
         Logger.info("[FundWorkflow] activate: #{fund.fund_name} → FUNDRAISING")
-        # TODO: POST /funds/{id}/activate
+        fund = api(:post, "/funds/#{fund.fund_id}/activate", nil, ctx)
         {:ok, Map.merge(fund, %{status: "FUNDRAISING"})}
 
       true ->
-        # Primera entrada o re-entry sin acción clara
         Logger.info("[FundWorkflow] activate: waiting (DRAFT)")
 
         {:wait_for_approval, [type: :manual],
@@ -88,7 +156,14 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     if action == "first_close" do
       Logger.info("[FundWorkflow] first_close: #{fund.fund_name} → ACTIVE")
-      # TODO: POST /funds/{id}/first-close
+
+      body = %{
+        close_date: data["close_date"],
+        final_amount: data["final_amount"],
+        lp_count: data["lp_count"]
+      }
+
+      fund = api(:post, "/funds/#{fund.fund_id}/first-close", body, ctx)
       {:ok, Map.merge(fund, %{status: "ACTIVE"})}
     else
       Logger.info("[FundWorkflow] first_close: waiting (FUNDRAISING)")
@@ -111,7 +186,8 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     if action == "start_harvesting" do
       Logger.info("[FundWorkflow] start_harvesting: #{fund.fund_name} → HARVESTING")
-      # TODO: POST /funds/{id}/transition
+      body = %{status: "HARVESTING", harvest_start: data["harvest_start"]}
+      fund = api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
       {:ok, Map.merge(fund, %{status: "HARVESTING"})}
     else
       Logger.info("[FundWorkflow] start_harvesting: waiting (ACTIVE)")
@@ -139,7 +215,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
         {:error, :auditoria_required}
       else
         Logger.info("[FundWorkflow] close_fund: #{fund.fund_name} → CLOSED")
-        # TODO: POST /funds/{id}/close
+        fund = api(:post, "/funds/#{fund.fund_id}/close", %{auditoria: auditoria}, ctx)
         {:ok, Map.merge(fund, %{status: "CLOSED"})}
       end
     else
@@ -163,7 +239,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     if action == "liquidate" do
       Logger.info("[FundWorkflow] liquidate: #{fund.fund_name} → LIQUIDATED")
-      # TODO: POST /funds/{id}/transition → LIQUIDATED
+      fund = api(:post, "/funds/#{fund.fund_id}/transition", %{status: "LIQUIDATED"}, ctx)
       {:ok, Map.merge(fund, %{status: "LIQUIDATED", liquidated: true})}
     else
       Logger.info("[FundWorkflow] liquidate: waiting (CLOSED)")
