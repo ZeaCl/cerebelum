@@ -260,7 +260,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
       else
         api(:post, "/funds/#{fund.fund_id}/transition", %{status: "LIQUIDATED"}, ctx)
         verify!(ctx, fund.fund_id, "LIQUIDATED")
-        {:ok, %{fund | status: "LIQUIDATED", liquidated: true}}
+        {:ok, Map.merge(fund, %{status: "LIQUIDATED", liquidated: true})}
       end
     else
       wfa("liquidate", fund, "CLOSED", ["liquidate"])
