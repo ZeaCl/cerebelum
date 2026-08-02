@@ -241,20 +241,14 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     {:keep_state, data, [{:reply, from, Data.build_status(data, :failed)}]}
   end
 
-  # Retry the failed step on approve — allows recovering from transient errors.
-  # Stores the approval response, clears the error, and re-executes the step.
-  def failed({:call, from}, {:approve, approval_response}, data) do
-    step_name = Enum.at(data.timeline, data.current_step_index) || hd(data.timeline)
-    Logger.info("Retrying failed step :#{step_name} on execution #{data.context.execution_id}")
-
-    # Store approval response as step result (replaces the failed attempt)
-    data = Data.store_result(data, step_name, {:ok, approval_response})
-
-    # Clear the error — we're retrying
-    data = %{data | error: nil}
-
-    reply_action = {:reply, from, {:ok, :retrying}}
-    {:next_state, :executing_step, data, [reply_action, {:next_event, :internal, :execute}]}
+  # Reject approvals on failed executions with a clear error.
+  # The full retry mechanism requires fixes in state_reconstructor (step index
+  # advances after ApprovalReceivedEvent even if step later failed).
+  # Until then, reject with the actual failure reason so the caller knows why.
+  def failed({:call, from}, {:approve, _approval_response}, data) do
+    reason = data.error && Cerebelum.Execution.ErrorInfo.format(data.error)
+    Logger.warning("Approve rejected on failed execution #{data.context.execution_id}: #{reason}")
+    {:keep_state, data, [{:reply, from, {:error, reason || "execution_failed"}}]}
   end
 
   def failed({:call, from}, _event, data) do
