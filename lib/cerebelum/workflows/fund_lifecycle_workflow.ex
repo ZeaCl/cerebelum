@@ -129,7 +129,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
       a == "activate" ->
         # Idempotent: if already FUNDRAISING or beyond, skip
         fund_data = get_fund(fund.fund_id, ctx)
-        if fund_data["status"] in ["FUNDRAISING", "INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
+        if fund_data["status"] in ["FUNDRAISING", "ACTIVE", "INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
           Logger.info("[FundWorkflow] activate skipped — already #{fund_data["status"]}")
           {:ok, %{fund | status: fund_data["status"]}}
         else
