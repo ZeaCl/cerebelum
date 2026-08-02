@@ -77,6 +77,8 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   # ── Step: Create Fund (DRAFT) ────────────────────────────────────────
 
   def create_fund(%{inputs: inputs} = ctx) do
+    Logger.info("[FundWorkflow] ctx keys: #{inspect(Map.keys(ctx))}")
+    Logger.info("[FundWorkflow] metadata: #{inspect(ctx.metadata)}")
     fund_data = inputs["fund_data"] || %{}
     name = fund_data["name"] || "Fondo"
     exec_id = ctx.execution_id
