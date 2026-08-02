@@ -59,9 +59,19 @@ defmodule Cerebelum.FundLifecycleWorkflow do
   end
 
   defp get_auth_token(%{metadata: meta}) when is_map(meta) do
+
+  defp parse_int(n) when is_integer(n), do: n
+  defp parse_int(s) when is_binary(s), do: String.to_integer(s)
+  defp parse_int(_), do: 0
+
     Map.get(meta, :auth_token) || Map.get(meta, "auth_token")
   end
   defp get_auth_token(_), do: nil
+
+  defp parse_int(n) when is_integer(n), do: n
+  defp parse_int(s) when is_binary(s), do: String.to_integer(s)
+  defp parse_int(_), do: 0
+
 
   # ── Helpers ──────────────────────────────────────────────────────────
 
