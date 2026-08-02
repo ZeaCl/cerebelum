@@ -47,6 +47,38 @@ defmodule Cerebelum.Execution.StepExecutor do
     # Build arguments for this step
     args = build_arguments(context, step_index, timeline, results)
 
+    # For HITL re-entry: if this step has an existing result from a previous
+    # wait_for_approval that was approved, merge the approval data into context.inputs
+    # so the step function can access it via ctx.inputs["approve_response"].
+    context =
+      case Map.get(results, step_name) do
+        {:ok, approval_data} when is_map(approval_data) ->
+          Logger.debug("Step #{step_name}: merging approval data into context.inputs")
+          # Unwrap Python SDK's {"ok": ...} wrapper if present
+          unwrapped =
+            case approval_data do
+              %{"ok" => inner} when is_map(inner) -> inner
+              _ -> approval_data
+            end
+
+          existing_inputs = Map.get(context, :inputs, %{}) || %{}
+
+          updated_inputs =
+            if is_map(existing_inputs) do
+              Map.put(existing_inputs, "approve_response", unwrapped)
+            else
+              %{"approve_response" => unwrapped}
+            end
+
+          Map.put(context, :inputs, updated_inputs)
+
+        _ ->
+          context
+      end
+
+    # Update the first argument (context) with approval data if merged
+    args = [context | tl(args)]
+
     # Execute the step function
     try do
       result = apply(workflow_module, step_name, args)
