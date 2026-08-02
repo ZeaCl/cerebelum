@@ -127,9 +127,16 @@ defmodule Cerebelum.FundLifecycleWorkflow do
         wfa("activate", fund, "DRAFT", ["edit", "activate"])
 
       a == "activate" ->
-        api(:post, "/funds/#{fund.fund_id}/activate", nil, ctx)
-        verify!(ctx, fund.fund_id, "FUNDRAISING")
-        {:ok, %{fund | status: "FUNDRAISING"}}
+        # Idempotent: if already FUNDRAISING or beyond, skip
+        fund_data = get_fund(fund.fund_id, ctx)
+        if fund_data["status"] in ["FUNDRAISING", "INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
+          Logger.info("[FundWorkflow] activate skipped — already #{fund_data["status"]}")
+          {:ok, %{fund | status: fund_data["status"]}}
+        else
+          api(:post, "/funds/#{fund.fund_id}/activate", nil, ctx)
+          verify!(ctx, fund.fund_id, "FUNDRAISING")
+          {:ok, %{fund | status: "FUNDRAISING"}}
+        end
 
       true ->
         wfa("activate", fund, "DRAFT", ["edit", "activate"])
