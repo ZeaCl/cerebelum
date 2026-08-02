@@ -64,7 +64,7 @@ defmodule Cerebelum.CapitalCallWorkflow do
       cc = api(:post, "/capital-calls", %{
         execution_id: id,
         fund_id: fund_id,
-        fund_name: fd["fund_name"] || "",
+        fund_name: fd["fund_name"] || "Fondo #{fund_id}",
         call_number: fd["call_number"] || "1",
         total_amount: fd["total_amount"] || "0",
         currency: fd["currency"] || "USD",
