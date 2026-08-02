@@ -241,12 +241,20 @@ defmodule Cerebelum.Execution.Engine.StateHandlers do
     {:keep_state, data, [{:reply, from, Data.build_status(data, :failed)}]}
   end
 
-  # Reject approvals and any other actions when execution has failed.
-  # Returns a clear error instead of crashing with FunctionClauseError → 500.
-  def failed({:call, from}, {:approve, _approval_response}, data) do
-    error_msg = "Cannot approve: execution #{data.context.execution_id} is in failed state"
-    Logger.warning(error_msg)
-    {:keep_state, data, [{:reply, from, {:error, :execution_failed}}]}
+  # Retry the failed step on approve — allows recovering from transient errors.
+  # Stores the approval response, clears the error, and re-executes the step.
+  def failed({:call, from}, {:approve, approval_response}, data) do
+    step_name = Enum.at(data.timeline, data.current_step_index) || hd(data.timeline)
+    Logger.info("Retrying failed step :#{step_name} on execution #{data.context.execution_id}")
+
+    # Store approval response as step result (replaces the failed attempt)
+    data = Data.store_result(data, step_name, {:ok, approval_response})
+
+    # Clear the error — we're retrying
+    data = %{data | error: nil}
+
+    reply_action = {:reply, from, {:ok, :retrying}}
+    {:next_state, :executing_step, data, [reply_action, {:next_event, :internal, :execute}]}
   end
 
   def failed({:call, from}, _event, data) do
