@@ -37,6 +37,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
         {String.to_charlist(url), headers, ~c"application/json", payload}
       end
 
+    # TODO: :httpc is deprecated in OTP 26+, migrate to Finch/Req
     case :httpc.request(method, req, [], []) do
       {:ok, {{_, s, _}, _, b}} when s in 200..299 -> Jason.decode!(b)
       {:ok, {{_, s, _}, _, b}} -> raise "API #{s}: #{b}"
@@ -77,36 +78,43 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     # Recovery mode: fund already exists, skip creation
     existing_fund_id = fd["fund_id"]
+
     if existing_fund_id && existing_fund_id != "" do
       Logger.info("[FundWorkflow] Recovery mode — fund already exists: #{existing_fund_id}")
       fund = get_fund(existing_fund_id, ctx)
-      {:ok, %{fund_id: existing_fund_id, fund_name: fund["name"] || name, status: fund["status"] || "DRAFT"}}
+
+      {:ok,
+       %{
+         fund_id: existing_fund_id,
+         fund_name: fund["name"] || name,
+         status: fund["status"] || "DRAFT"
+       }}
     else
       fund =
         api(
           :post,
           "/funds/draft",
-        %{
-          execution_id: id,
-          name: name,
-          type: fd["type"] || "PE",
-          currency: fd["currency"] || "USD",
-          target_size: to_int(fd["target_size"] || fd["total_size"] || 5_000_000),
-          management_fee_bps: to_int(fd["management_fee_bps"] || fd["management_fee"] || 200),
-          carried_interest_bps:
-            to_int(fd["carried_interest_bps"] || fd["carried_interest"] || 2000),
-          hurdle_rate_bps: to_int(fd["hurdle_rate_bps"] || fd["hurdle_rate"] || 800),
-          fund_term_years: to_int(fd["fund_term_years"] || 10),
-          investment_period_years: to_int(fd["investment_period_years"] || 5),
-          fundraising_months: to_int(fd["fundraising_months"] || 12),
-          investment_months: to_int(fd["investment_months"] || 60),
-          harvesting_months: to_int(fd["harvesting_months"] || 48),
-          thesis: fd["thesis"] || "Creado via Cerebelum nativo",
-          vintage_year: to_int(fd["vintage_year"]),
-          hard_cap: to_int(fd["hard_cap"])
-        },
-        ctx
-      )
+          %{
+            execution_id: id,
+            name: name,
+            type: fd["type"] || "PE",
+            currency: fd["currency"] || "USD",
+            target_size: to_int(fd["target_size"] || fd["total_size"] || 5_000_000),
+            management_fee_bps: to_int(fd["management_fee_bps"] || fd["management_fee"] || 200),
+            carried_interest_bps:
+              to_int(fd["carried_interest_bps"] || fd["carried_interest"] || 2000),
+            hurdle_rate_bps: to_int(fd["hurdle_rate_bps"] || fd["hurdle_rate"] || 800),
+            fund_term_years: to_int(fd["fund_term_years"] || 10),
+            investment_period_years: to_int(fd["investment_period_years"] || 5),
+            fundraising_months: to_int(fd["fundraising_months"] || 12),
+            investment_months: to_int(fd["investment_months"] || 60),
+            harvesting_months: to_int(fd["harvesting_months"] || 48),
+            thesis: fd["thesis"] || "Creado via Cerebelum nativo",
+            vintage_year: to_int(fd["vintage_year"]),
+            hard_cap: to_int(fd["hard_cap"])
+          },
+          ctx
+        )
 
       fid = fund["id"]
       verify!(ctx, fid, "DRAFT")
@@ -127,15 +135,25 @@ defmodule Cerebelum.FundLifecycleWorkflow do
         wfa("activate", fund, "DRAFT", ["edit", "activate"])
 
       a == "activate" ->
-        # Idempotent: if already FUNDRAISING or beyond, skip
+        # Idempotent: if already FUNDRAISING or beyond, skip.
+        # Note: some states (INVESTING..LIQUIDATED) are unreachable from DRAFT
+        # in normal flow but included defensively for recovery edge cases.
         fund_data = get_fund(fund.fund_id, ctx)
-        if fund_data["status"] in ["FUNDRAISING", "ACTIVE", "INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
+
+        if fund_data["status"] in [
+             "FUNDRAISING",
+             "ACTIVE",
+             "INVESTING",
+             "HARVESTING",
+             "CLOSED",
+             "LIQUIDATED"
+           ] do
           Logger.info("[FundWorkflow] activate skipped — already #{fund_data["status"]}")
-          {:ok, %{fund | status: fund_data["status"]}}
+          {:ok, Map.merge(fund, %{status: fund_data["status"]})}
         else
           api(:post, "/funds/#{fund.fund_id}/activate", nil, ctx)
           verify!(ctx, fund.fund_id, "FUNDRAISING")
-          {:ok, %{fund | status: "FUNDRAISING"}}
+          {:ok, Map.merge(fund, %{status: "FUNDRAISING"})}
         end
 
       true ->
@@ -155,9 +173,10 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
         # Idempotent: if already ACTIVE or beyond, skip
         fund_data = get_fund(fund.fund_id, ctx)
+
         if fund_data["status"] in ["ACTIVE", "INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
           Logger.info("[FundWorkflow] first_close skipped — already #{fund_data["status"]}")
-          {:ok, %{fund | status: fund_data["status"]}}
+          {:ok, Map.merge(fund, %{status: fund_data["status"]})}
         else
           api(
             :post,
@@ -171,7 +190,7 @@ defmodule Cerebelum.FundLifecycleWorkflow do
           )
 
           verify!(ctx, fund.fund_id, "ACTIVE")
-          {:ok, %{fund | status: "ACTIVE"}}
+          {:ok, Map.merge(fund, %{status: "ACTIVE"})}
         end
 
       true ->
@@ -186,19 +205,20 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     if a == "start_investing" do
       fund_data = get_fund(fund.fund_id, ctx)
+
       if fund_data["status"] in ["INVESTING", "HARVESTING", "CLOSED", "LIQUIDATED"] do
         Logger.info("[FundWorkflow] start_investing skipped — already #{fund_data["status"]}")
-        {:ok, %{fund | status: fund_data["status"]}}
+        {:ok, Map.merge(fund, %{status: fund_data["status"]})}
       else
         date = d["investment_start"] || d["date"] || ""
         body = %{status: "INVESTING"}
         body = if date != "", do: Map.put(body, :investment_start, date), else: body
         api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
         verify!(ctx, fund.fund_id, "INVESTING")
-        {:ok, %{fund | status: "INVESTING"}}
+        {:ok, Map.merge(fund, %{status: "INVESTING"})}
       end
     else
-      wfa("start_investing", fund, "FUNDRAISING", ["start_investing"])
+      wfa("start_investing", fund, fund.status, ["start_investing"])
     end
   end
 
@@ -209,16 +229,17 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     if a == "start_harvesting" do
       fund_data = get_fund(fund.fund_id, ctx)
+
       if fund_data["status"] in ["HARVESTING", "CLOSED", "LIQUIDATED"] do
         Logger.info("[FundWorkflow] start_harvesting skipped — already #{fund_data["status"]}")
-        {:ok, %{fund | status: fund_data["status"]}}
+        {:ok, Map.merge(fund, %{status: fund_data["status"]})}
       else
         date = d["harvest_start"] || d["date"] || ""
         body = %{status: "HARVESTING"}
         body = if date != "", do: Map.put(body, :harvest_start, date), else: body
         api(:post, "/funds/#{fund.fund_id}/transition", body, ctx)
         verify!(ctx, fund.fund_id, "HARVESTING")
-        {:ok, %{fund | status: "HARVESTING"}}
+        {:ok, Map.merge(fund, %{status: "HARVESTING"})}
       end
     else
       wfa("start_harvesting", fund, "INVESTING", ["start_harvesting"])
@@ -232,15 +253,16 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     if a == "close_fund" do
       fund_data = get_fund(fund.fund_id, ctx)
+
       if fund_data["status"] in ["CLOSED", "LIQUIDATED"] do
         Logger.info("[FundWorkflow] close_fund skipped — already #{fund_data["status"]}")
-        {:ok, %{fund | status: fund_data["status"]}}
+        {:ok, Map.merge(fund, %{status: fund_data["status"]})}
       else
         aud = d["auditoria"] || ""
         if aud == "", do: raise("auditoria required")
         api(:post, "/funds/#{fund.fund_id}/close", %{auditoria: aud}, ctx)
         verify!(ctx, fund.fund_id, "CLOSED")
-        {:ok, %{fund | status: "CLOSED"}}
+        {:ok, Map.merge(fund, %{status: "CLOSED"})}
       end
     else
       wfa("close_fund", fund, "HARVESTING", ["close_fund"])
@@ -254,9 +276,10 @@ defmodule Cerebelum.FundLifecycleWorkflow do
 
     if a == "liquidate" do
       fund_data = get_fund(fund.fund_id, ctx)
+
       if fund_data["status"] == "LIQUIDATED" do
         Logger.info("[FundWorkflow] liquidate skipped — already LIQUIDATED")
-        {:ok, %{fund | status: "LIQUIDATED", liquidated: true}}
+        {:ok, Map.merge(fund, %{status: "LIQUIDATED", liquidated: true})}
       else
         api(:post, "/funds/#{fund.fund_id}/transition", %{status: "LIQUIDATED"}, ctx)
         verify!(ctx, fund.fund_id, "LIQUIDATED")
